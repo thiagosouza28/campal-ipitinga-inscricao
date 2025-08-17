@@ -94,7 +94,7 @@ export function RegistrationForm() {
     
     const details = [
       `Nome: ${registrationData.full_name}`,
-      `Data de Nascimento: ${new Date(registrationData.birth_date).toLocaleDateString('pt-BR')}`,
+      `Data de Nascimento: ${registrationData.birth_date.split('-').reverse().join('/')}`,
       `Idade: ${age} anos`,
       `Distrito: ${district?.name || 'N/A'}`,
       `Igreja: ${church?.name || 'N/A'}`,
