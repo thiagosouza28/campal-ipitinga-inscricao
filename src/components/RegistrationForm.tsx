@@ -92,7 +92,7 @@ export function RegistrationForm() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto m-4 sm:m-0">
+    <Card className="w-full max-w-2xl mx-auto m-2 sm:m-4 lg:m-0">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl sm:text-3xl font-bold text-event-primary">
           CAMPAL 2025 - IPITINGA

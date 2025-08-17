@@ -47,8 +47,8 @@ const Index = () => {
         </div>
 
         {/* Folder do Evento */}
-        <div className="flex justify-center mb-12">
-          <div className="max-w-md sm:max-w-lg lg:max-w-xl">
+        <div className="flex justify-center mb-8 sm:mb-12">
+          <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl px-4 sm:px-0">
             <img 
               src="/lovable-uploads/50d3c65d-d09c-4cab-a792-8c6d8fa890fe.png" 
               alt="Folder CAMPAL 2025 - Fortes na Palavra"
@@ -57,7 +57,7 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto mb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 max-w-4xl mx-auto mb-12">
           <Card className="border-2 border-event-primary/20 hover:border-event-primary/40 transition-colors">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl text-event-primary flex items-center justify-center gap-2">

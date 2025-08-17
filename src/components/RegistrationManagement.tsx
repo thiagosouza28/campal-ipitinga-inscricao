@@ -263,7 +263,7 @@ export function RegistrationManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-6">
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold text-center">{stats.total}</div>
@@ -296,7 +296,7 @@ export function RegistrationManagement() {
             </Card>
           </div>
 
-          <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 mb-6">
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Search className="h-4 w-4" />
               <Input
@@ -307,8 +307,8 @@ export function RegistrationManagement() {
               />
             </div>
             <Select value={districtFilter} onValueChange={setDistrictFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filtrar por distrito" />
+              <SelectTrigger className="w-full sm:w-40 lg:w-48">
+                <SelectValue placeholder="Distrito" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os distritos</SelectItem>
@@ -320,8 +320,8 @@ export function RegistrationManagement() {
               </SelectContent>
             </Select>
             <Select value={churchFilter} onValueChange={setChurchFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filtrar por igreja" />
+              <SelectTrigger className="w-full sm:w-40 lg:w-48">
+                <SelectValue placeholder="Igreja" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as igrejas</SelectItem>
@@ -333,8 +333,8 @@ export function RegistrationManagement() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filtrar por status" />
+              <SelectTrigger className="w-full sm:w-40 lg:w-48">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
