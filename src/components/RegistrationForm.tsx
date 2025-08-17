@@ -13,7 +13,8 @@ import { Check, ChevronsUpDown, Calendar, MapPin, Church } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useDistricts, useChurches } from "@/hooks/useSupabaseData";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import jsPDF from 'jspdf';
 
 const formSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -29,6 +30,7 @@ export function RegistrationForm() {
   const [submitting, setSubmitting] = useState(false);
   const { districts } = useDistricts();
   const { churches } = useChurches();
+  const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -56,13 +58,117 @@ export function RegistrationForm() {
     return age;
   };
 
+  const generateReceipt = (registrationData: FormData, registrationId: string, age: number) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // Header with event branding
+    doc.setFillColor(197, 71, 52); // event-primary color
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CAMPAL 2025 - IPITINGA', pageWidth / 2, 15, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.text('FORTES NA PALAVRA', pageWidth / 2, 25, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.text('COMPROVANTE DE INSCRIÇÃO', pageWidth / 2, 35, { align: 'center' });
+    
+    // Reset text color for content
+    doc.setTextColor(0, 0, 0);
+    
+    // Registration details
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DADOS DA INSCRIÇÃO', 20, 60);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(12);
+    
+    const district = districts.find(d => d.id === registrationData.district_id);
+    const church = churches.find(c => c.id === registrationData.church_id);
+    
+    const details = [
+      `Nome: ${registrationData.full_name}`,
+      `Data de Nascimento: ${new Date(registrationData.birth_date).toLocaleDateString('pt-BR')}`,
+      `Idade: ${age} anos`,
+      `Distrito: ${district?.name || 'N/A'}`,
+      `Igreja: ${church?.name || 'N/A'}`,
+      `Valor: ${age <= 10 ? 'GRATUITO (até 10 anos)' : 'R$ 10,00'}`,
+      `Data de Inscrição: ${new Date().toLocaleDateString('pt-BR')}`,
+      `Protocolo: ${registrationId.substring(0, 8).toUpperCase()}`
+    ];
+    
+    let yPosition = 75;
+    details.forEach(detail => {
+      doc.text(detail, 20, yPosition);
+      yPosition += 8;
+    });
+    
+    // Event information
+    doc.setFont('helvetica', 'bold');
+    doc.text('INFORMAÇÕES DO EVENTO', 20, yPosition + 15);
+    
+    doc.setFont('helvetica', 'normal');
+    yPosition += 25;
+    
+    const eventDetails = [
+      'Data: 26, 27 e 28 de Setembro de 2025',
+      'Local: CATRE IPITINGA',
+      'Tema: FORTES NA PALAVRA',
+      'Prazo para pagamento: até 15 de setembro de 2025'
+    ];
+    
+    eventDetails.forEach(detail => {
+      doc.text(detail, 20, yPosition);
+      yPosition += 8;
+    });
+    
+    // Important notes
+    doc.setFont('helvetica', 'bold');
+    doc.text('OBSERVAÇÕES IMPORTANTES', 20, yPosition + 15);
+    
+    doc.setFont('helvetica', 'normal');
+    yPosition += 25;
+    
+    const notes = [
+      '• Mantenha este comprovante para apresentação no evento',
+      '• Crianças até 10 anos não pagam inscrição',
+      '• Pagamento pode ser feito via PIX ou dinheiro',
+      '• Mais informações serão enviadas aos inscritos'
+    ];
+    
+    notes.forEach(note => {
+      doc.text(note, 20, yPosition);
+      yPosition += 8;
+    });
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(
+      `Comprovante gerado em ${new Date().toLocaleString('pt-BR')}`,
+      pageWidth / 2,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
+    );
+    
+    // Save the PDF
+    const fileName = `campal-2025-inscricao-${registrationData.full_name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    doc.save(fileName);
+  };
+
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
     
     try {
       const age = calculateAge(data.birth_date);
       
-      const { error } = await supabase
+      const { data: result, error } = await supabase
         .from('registrations')
         .insert({
           full_name: data.full_name,
@@ -70,13 +176,20 @@ export function RegistrationForm() {
           age: age,
           district_id: data.district_id,
           church_id: data.church_id,
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
+      // Generate receipt PDF
+      if (result) {
+        generateReceipt(data, result.id, age);
+      }
+
       toast({
         title: "Inscrição realizada com sucesso!",
-        description: "Sua inscrição foi registrada. Aguarde confirmação do pagamento.",
+        description: "Comprovante de inscrição foi baixado automaticamente.",
       });
 
       form.reset();
