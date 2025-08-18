@@ -12,13 +12,7 @@ export function useSupabaseData(table: string, options = {}) {
     try {
       setLoading(true);
       
-      // Check if we have an active session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
-      }
-
+      // Removido a verificação de sessão - acesso direto
       const { data, error: supabaseError } = await supabase
         .from(table)
         .select('*');
@@ -115,7 +109,10 @@ export function useChurches() {
       
       const { data, error: supabaseError } = await supabase
         .from('churches')
-        .select('*')
+        .select(`
+          *,
+          district:districts(*)
+        `)
         .order('name');
 
       if (supabaseError) {
@@ -161,21 +158,15 @@ export function useRegistrations() {
     try {
       setLoading(true);
       
-      // Check if we have an active session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
-      }
-
+      // Removido a verificação de sessão - acesso direto
       const { data, error: supabaseError } = await supabase
         .from('registrations')
         .select(`
           *,
-          districts (name),
-          churches (name)
+          district:districts(*),
+          church:churches(*)
         `)
-        .order('created_at', { ascending: false });
+        .order('registration_date', { ascending: false });
       
       if (supabaseError) {
         throw supabaseError;
