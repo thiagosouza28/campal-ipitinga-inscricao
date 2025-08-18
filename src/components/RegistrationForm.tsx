@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useDistricts, useChurches } from "@/hooks/useSupabaseData";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const formSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -204,6 +206,28 @@ export function RegistrationForm() {
     }
   };
 
+  // Add this helper function inside the component
+  const formatDateString = (value: string) => {
+    if (!value) return "";
+    
+    // Remove non-digits
+    let numbers = value.replace(/\D/g, '');
+    
+    // Format as DD/MM/YYYY
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+  };
+
+  const parseDate = (dateString: string) => {
+    // Handle DD/MM/YYYY format
+    if (dateString.includes('/')) {
+      const [day, month, year] = dateString.split('/');
+      return `${year}-${month}-${day}`;
+    }
+    return dateString;
+  };
+
   return (
     
       <div className="w-full max-w-md mx-auto px-4 py-8 sm:py-12">
@@ -255,11 +279,36 @@ export function RegistrationForm() {
                     Data de Nascimento
                   </FormLabel>
                   <FormControl>
-                    <Input 
-                      type="date" 
-                      className="h-12 bg-white/70 border-0 focus:bg-white"
-                      {...field} 
-                    />
+                    <div className="relative">
+                      <Input 
+                        placeholder="DD/MM/AAAA"
+                        className="h-12 bg-white/70 border-0 focus:bg-white pr-12"
+                        value={field.value ? format(new Date(field.value), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                        onChange={(e) => {
+                          const formatted = formatDateString(e.target.value);
+                          e.target.value = formatted;
+                          
+                          if (formatted.length === 10) {
+                            const isoDate = parseDate(formatted);
+                            field.onChange(isoDate);
+                          }
+                        }}
+                        maxLength={10}
+                        inputMode="numeric"
+                      />
+                      <div className="absolute right-0 top-0 h-full flex items-center pr-3">
+                        <Input
+                          type="date"
+                          className="absolute opacity-0 w-10 cursor-pointer"
+                          onChange={(e) => {
+                            field.onChange(e.target.value);
+                          }}
+                          value={field.value || ''}
+                          max={format(new Date(), 'yyyy-MM-dd')}
+                        />
+                        <Calendar className="h-5 w-5 text-muted-foreground pointer-events-none" />
+                      </div>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
