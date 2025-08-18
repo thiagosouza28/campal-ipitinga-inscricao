@@ -171,12 +171,15 @@ export function AdminManagement() {
       const { error } = await supabase
         .from('districts')
         .update({ name: data.name })
-        .eq('id', editingDistrict.id);
+        .eq('id', editingDistrict.id)
+        .select()
+        .single();
 
       if (error) throw error;
 
       toast({
         title: "Distrito atualizado com sucesso!",
+        description: `Nome alterado para: ${data.name}`,
       });
 
       await mutateDistricts();
@@ -196,6 +199,15 @@ export function AdminManagement() {
   const onDistrictDelete = async (id: string) => {
     setLoading(true);
     try {
+      // First, delete all churches in this district
+      const { error: churchError } = await supabase
+        .from('churches')
+        .delete()
+        .eq('district_id', id);
+
+      if (churchError) throw churchError;
+
+      // Then delete the district
       const { error } = await supabase
         .from('districts')
         .delete()
@@ -205,9 +217,10 @@ export function AdminManagement() {
 
       toast({
         title: "Distrito excluído com sucesso!",
+        description: "Todas as igrejas associadas também foram removidas.",
       });
 
-      await mutateDistricts();
+      await Promise.all([mutateDistricts(), mutateChurches()]);
     } catch (error: any) {
       toast({
         title: "Erro ao excluir distrito",
@@ -229,12 +242,15 @@ export function AdminManagement() {
           name: data.name,
           district_id: data.district_id,
         })
-        .eq('id', editingChurch.id);
+        .eq('id', editingChurch.id)
+        .select()
+        .single();
 
       if (error) throw error;
 
       toast({
         title: "Igreja atualizada com sucesso!",
+        description: `Nome alterado para: ${data.name}`,
       });
 
       await mutateChurches();
@@ -257,7 +273,9 @@ export function AdminManagement() {
       const { error } = await supabase
         .from('churches')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) throw error;
 

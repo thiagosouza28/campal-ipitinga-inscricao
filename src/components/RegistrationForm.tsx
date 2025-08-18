@@ -17,10 +17,25 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { CheckCircle, Download } from "lucide-react";
 
 const formSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  birth_date: z.string().min(1, "Data de nascimento é obrigatória"),
+  birth_date: z.string()
+    .min(1, "Data de nascimento é obrigatória")
+    .refine((date) => {
+      if (!date) return false;
+      const parsedDate = new Date(date);
+      return !isNaN(parsedDate.getTime());
+    }, "Data inválida"),
   district_id: z.string().min(1, "Distrito é obrigatório"),
   church_id: z.string().min(1, "Igreja é obrigatória"),
 });
@@ -30,6 +45,11 @@ type FormData = z.infer<typeof formSchema>;
 export function RegistrationForm() {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [registrationData, setRegistrationData] = useState<{
+    name: string;
+    protocol: string;
+  } | null>(null);
   const { districts } = useDistricts();
   const { churches } = useChurches();
   const { toast } = useToast();
@@ -206,7 +226,7 @@ export function RegistrationForm() {
     }
   };
 
-  // Add these helper functions
+  // Update the existing helper functions
   const formatDateString = (value: string) => {
     if (!value) return "";
     
@@ -222,9 +242,15 @@ export function RegistrationForm() {
 
   const parseDate = (dateString: string) => {
     if (!dateString) return "";
+    
     // Handle DD/MM/YYYY format
     if (dateString.includes('/')) {
       const [day, month, year] = dateString.split('/');
+      
+      // Validate date
+      const date = new Date(Number(year), Number(month) - 1, Number(day));
+      if (isNaN(date.getTime())) return "";
+      
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
     return dateString;
@@ -298,7 +324,18 @@ export function RegistrationForm() {
                             if (isoDate) {
                               field.onChange(isoDate);
                             }
+                          } else {
+                            // Allow partial input without triggering validation
+                            field.onChange("");
                           }
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value.length > 0 && e.target.value.length < 10) {
+                            // Clear invalid partial dates on blur
+                            e.target.value = '';
+                            field.onChange("");
+                          }
+                          field.onBlur();
                         }}
                         maxLength={10}
                         inputMode="numeric"
@@ -308,7 +345,10 @@ export function RegistrationForm() {
                           type="date"
                           className="absolute opacity-0 w-10 cursor-pointer"
                           onChange={(e) => {
-                            field.onChange(e.target.value);
+                            if (e.target.value) {
+                              const date = new Date(e.target.value);
+                              field.onChange(format(date, 'yyyy-MM-dd'));
+                            }
                           }}
                           value={field.value || ''}
                           max={format(new Date(), 'yyyy-MM-dd')}
@@ -430,6 +470,65 @@ export function RegistrationForm() {
           </form>
         </Form>
 
+        {/* Confirmation Dialog */}
+<Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+  <DialogContent className="sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2 text-event-primary">
+        <CheckCircle className="h-6 w-6" />
+        Inscrição Realizada com Sucesso!
+      </DialogTitle>
+      <DialogDescription className="pt-4 space-y-4">
+        <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+          <p className="font-medium">
+            {registrationData?.name}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Protocolo: {registrationData?.protocol}
+          </p>
+        </div>
+        <div className="border rounded-lg p-4 flex items-center gap-3">
+          <div className="bg-event-primary/10 p-2 rounded-full">
+            <Download className="h-5 w-5 text-event-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium text-sm">
+              Comprovante de Inscrição
+            </p>
+            <p className="text-sm text-muted-foreground">
+              O download do PDF foi iniciado automaticamente
+            </p>
+          </div>
+        </div>
+      </DialogDescription>
+    </DialogHeader>
+    <DialogFooter className="sm:justify-start">
+      <Button 
+        onClick={() => setShowConfirmation(false)}
+        className="w-full bg-event-primary hover:bg-event-primary/90"
+      >
+        Entendi
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+{/* Loading Overlay */}
+{submitting && (
+  <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="bg-card p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-4 border-event-primary border-t-transparent rounded-full animate-spin" />
+        <div className="text-center">
+          <p className="font-medium text-lg">Processando Inscrição</p>
+          <p className="text-sm text-muted-foreground">
+            Aguarde enquanto preparamos seu comprovante...
+          </p>
+        </div>
+      </div>
     </div>
+  </div>
+)}
+      </div>
   );
 }
