@@ -1,44 +1,91 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface District {
-  id: string;
-  name: string;
-}
+export function useSupabaseData(table: string, options = {}) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { toast } = useToast();
 
-interface Church {
-  id: string;
-  name: string;
-  district_id: string;
-}
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Check if we have an active session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
 
-interface Registration {
-  id: string;
-  full_name: string;
-  birth_date: string;
-  age: number;
-  district_id: string;
-  church_id: string;
-  created_at: string;
-  districts: { name: string };
-  churches: { name: string };
+      const { data, error: supabaseError } = await supabase
+        .from(table)
+        .select('*');
+
+      if (supabaseError) {
+        throw supabaseError;
+      }
+
+      setData(data || []);
+    } catch (err: any) {
+      setError(err);
+      toast({
+        title: 'Error fetching data',
+        description: err.message || 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const mutate = () => fetchData();
+
+  return { data, loading, error, mutate };
 }
 
 export function useDistricts() {
-  const [districts, setDistricts] = useState<District[]>([]);
+  const [districts, setDistricts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { toast } = useToast();
 
   const fetchDistricts = async () => {
     try {
-      const { data, error } = await supabase
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching districts...');
+      
+      const { data, error: supabaseError } = await supabase
         .from('districts')
         .select('*')
         .order('name');
-      
-      if (error) throw error;
+
+      if (supabaseError) {
+        console.error('Supabase error fetching districts:', supabaseError);
+        throw supabaseError;
+      }
+
+      console.log('Districts fetched successfully:', data);
       setDistricts(data || []);
-    } catch (error) {
-      console.error('Error fetching districts:', error);
+    } catch (err: any) {
+      console.error('Error fetching districts:', err);
+      setError(err);
+      
+      // Show toast only if it's a network or configuration error
+      if (err.message?.includes('fetch') || err.message?.includes('network')) {
+        toast({
+          title: 'Erro de conexão',
+          description: 'Verifique sua conexão com a internet e tente novamente.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -48,29 +95,48 @@ export function useDistricts() {
     fetchDistricts();
   }, []);
 
-  const mutate = async () => {
-    setLoading(true);
-    await fetchDistricts();
-  };
+  const mutate = () => fetchDistricts();
 
-  return { districts, loading, mutate };
+  return { districts, loading, error, mutate };
 }
 
 export function useChurches() {
-  const [churches, setChurches] = useState<Church[]>([]);
+  const [churches, setChurches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { toast } = useToast();
 
   const fetchChurches = async () => {
     try {
-      const { data, error } = await supabase
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching churches...');
+      
+      const { data, error: supabaseError } = await supabase
         .from('churches')
         .select('*')
         .order('name');
-      
-      if (error) throw error;
+
+      if (supabaseError) {
+        console.error('Supabase error fetching churches:', supabaseError);
+        throw supabaseError;
+      }
+
+      console.log('Churches fetched successfully:', data);
       setChurches(data || []);
-    } catch (error) {
-      console.error('Error fetching churches:', error);
+    } catch (err: any) {
+      console.error('Error fetching churches:', err);
+      setError(err);
+      
+      // Show toast only if it's a network or configuration error
+      if (err.message?.includes('fetch') || err.message?.includes('network')) {
+        toast({
+          title: 'Erro de conexão',
+          description: 'Verifique sua conexão com a internet e tente novamente.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -80,21 +146,29 @@ export function useChurches() {
     fetchChurches();
   }, []);
 
-  const mutate = async () => {
-    setLoading(true);
-    await fetchChurches();
-  };
+  const mutate = () => fetchChurches();
 
-  return { churches, loading, mutate };
+  return { churches, loading, error, mutate };
 }
 
 export function useRegistrations() {
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { toast } = useToast();
 
   const fetchRegistrations = async () => {
     try {
-      const { data, error } = await supabase
+      setLoading(true);
+      
+      // Check if we have an active session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      const { data, error: supabaseError } = await supabase
         .from('registrations')
         .select(`
           *,
@@ -103,10 +177,18 @@ export function useRegistrations() {
         `)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (supabaseError) {
+        throw supabaseError;
+      }
+
       setRegistrations(data || []);
-    } catch (error) {
-      console.error('Error fetching registrations:', error);
+    } catch (err: any) {
+      setError(err);
+      toast({
+        title: 'Error fetching registrations',
+        description: err.message || 'Please try again later',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -116,10 +198,7 @@ export function useRegistrations() {
     fetchRegistrations();
   }, []);
 
-  const mutate = async () => {
-    setLoading(true);
-    await fetchRegistrations();
-  };
+  const mutate = () => fetchRegistrations();
 
-  return { registrations, loading, mutate };
+  return { registrations, loading, error, mutate };
 }

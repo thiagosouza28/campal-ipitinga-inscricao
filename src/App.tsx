@@ -8,6 +8,8 @@ import Registration from "./pages/Registration";
 import Management from "./pages/Management";
 import NotFound from "./pages/NotFound";
 import { AdminManagement } from "@/components/AdminManagement";
+import { CheckinPage } from "@/components/CheckinPage";
+import { CheckinReport } from "@/components/CheckinReport";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +30,14 @@ const router = createBrowserRouter(
     {
       path: "/admin",
       element: <AdminManagement />,
+    },
+    {
+      path: "/checkin",
+      element: <CheckinPage />,
+    },
+    {
+      path: "/relatorio-checkin",
+      element: <CheckinReport />,
     },
     {
       path: "*",
