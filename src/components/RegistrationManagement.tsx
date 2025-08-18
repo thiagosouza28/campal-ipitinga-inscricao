@@ -15,8 +15,14 @@ import { ReportSelector, ReportType } from "@/components/ReportSelector";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+interface RegistrationsHook {
+  registrations: Registration[];
+  loading: boolean;
+  mutate: () => Promise<void>;
+}
+
 export function RegistrationManagement() {
-  const { registrations, loading, refetch } = useRegistrations();
+  const { registrations, loading, mutate } = useRegistrations() as RegistrationsHook;
   const { districts } = useDistricts();
   const { churches } = useChurches();
   const [search, setSearch] = useState("");
@@ -61,7 +67,7 @@ export function RegistrationManagement() {
         description: `Pagamento ${status === 'paid' ? 'confirmado' : 'marcado como pendente'}.`,
       });
 
-      refetch();
+      mutate();
     } catch (error) {
       toast({
         title: "Erro ao atualizar status",
