@@ -175,10 +175,23 @@ export function RegistrationForm() {
     yPosition += 10;
     doc.setFont('helvetica', 'normal');
     const notes = [
+      '🌟 Convite para o CAMPAL IPITINGA 2025! 🌟',
+      '📍 Local: CATRE IPITINGA',
+      '📅 Datas: 26, 27 e 28 de setembro',
+      '💵 Valor da inscrição: R$ 10,00 (para participantes acima de 10 anos)',
+      '⏰ Prazo para pagamento: até 15 de setembro',
+      '🔗 Link de inscrição: https://campal-ipitinga.vercel.app/inscricao',
+      '💰 Pagamento via Pix:',
+      '   - Chave: (91) 99332-0376',
+      '   - Nome: Thiago de Souza Teles',
+      '   - Banco: PagSeguro',
+      '📲 Envie o comprovante pelo WhatsApp: https://wa.me/5591982005371?text=Olá%2C%20estou%20enviando%20o%20comprovante%20da%20minha%20inscrição%20para%20o%20CAMPAL%20IPITINGA%202025',
+      '✨ Garanta já sua inscrição e venha viver momentos incríveis conosco!',
       '• Mantenha este comprovante para apresentação no evento',
       '• Crianças até 10 anos não pagam inscrição',
       '• Pagamento pode ser feito via PIX ou dinheiro',
-      '• Mais informações serão enviadas aos inscritos'
+      '• Em caso de dúvidas, entre em contato pelo WhatsApp',
+      '  (91) 98200-5371 - Thiago Teles'
     ];
     notes.forEach(note => {
       doc.text(note, 20, yPosition);
