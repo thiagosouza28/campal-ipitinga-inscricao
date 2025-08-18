@@ -206,7 +206,7 @@ export function RegistrationForm() {
     }
   };
 
-  // Add this helper function inside the component
+  // Add these helper functions
   const formatDateString = (value: string) => {
     if (!value) return "";
     
@@ -216,14 +216,16 @@ export function RegistrationForm() {
     // Format as DD/MM/YYYY
     if (numbers.length <= 2) return numbers;
     if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    if (numbers.length <= 8) return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4)}`;
     return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
   };
 
   const parseDate = (dateString: string) => {
+    if (!dateString) return "";
     // Handle DD/MM/YYYY format
     if (dateString.includes('/')) {
       const [day, month, year] = dateString.split('/');
-      return `${year}-${month}-${day}`;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
     return dateString;
   };
@@ -283,14 +285,19 @@ export function RegistrationForm() {
                       <Input 
                         placeholder="DD/MM/AAAA"
                         className="h-12 bg-white/70 border-0 focus:bg-white pr-12"
-                        value={field.value ? format(new Date(field.value), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                        value={field.value ? 
+                          format(new Date(field.value), 'dd/MM/yyyy', { locale: ptBR }) :
+                          ''
+                        }
                         onChange={(e) => {
                           const formatted = formatDateString(e.target.value);
                           e.target.value = formatted;
                           
                           if (formatted.length === 10) {
                             const isoDate = parseDate(formatted);
-                            field.onChange(isoDate);
+                            if (isoDate) {
+                              field.onChange(isoDate);
+                            }
                           }
                         }}
                         maxLength={10}
