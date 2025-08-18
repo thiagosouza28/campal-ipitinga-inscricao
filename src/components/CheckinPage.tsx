@@ -20,12 +20,21 @@ interface ParticipantData {
   checkin_datetime: string | null;
 }
 
+// Função para pegar a hora atual do Brasil (UTC-3)
+function getBrazilDateTime() {
+  return new Date(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+}
+
 export function CheckinPage() {
   const [scanning, setScanning] = useState(false);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const { toast } = useToast();
 
-  const handleScan = async (token: string | null) => {
+  const handleScan = async (result: any | null) => {
+    if (!result) return;
+
+    // Use getText() para pegar o conteúdo do QR Code
+    const token = typeof result.getText === 'function' ? result.getText() : result;
     if (!token) return;
 
     try {
@@ -48,7 +57,7 @@ export function CheckinPage() {
       if (data.checkin_status) {
         toast({
           title: "Check-in já realizado",
-          description: `Participante já realizou check-in em ${new Date(data.checkin_datetime!).toLocaleString()}`,
+          description: `Participante já realizou check-in em ${new Date(data.checkin_datetime!).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
           variant: "destructive",
         });
         return;
@@ -82,7 +91,7 @@ export function CheckinPage() {
         .from('registrations')
         .update({
           checkin_status: true,
-          checkin_datetime: new Date().toISOString(),
+          checkin_datetime: getBrazilDateTime().toISOString(),
           checkin_by: userData?.user?.id
         })
         .eq('id', participant.id);
@@ -115,32 +124,27 @@ export function CheckinPage() {
             <QrReader
               onResult={(result) => {
                 if (result) {
-                  handleScan(result.getText());
+                  handleScan(result);
                 }
               }}
               constraints={{ facingMode: 'environment' }}
+              containerStyle={{ width: '100%' }}
+              videoStyle={{ width: '100%' }}
             />
           </div>
         ) : participant ? (
           <div className="space-y-4">
             <div className="rounded-lg bg-muted p-4">
               <h3 className="font-bold text-lg">{participant.full_name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {participant.age} anos
-              </p>
-              <p className="text-sm">
-                {participant.district.name} - {participant.church.name}
-              </p>
+              <p className="text-sm text-muted-foreground">{participant.age} anos</p>
+              <p className="text-sm">{participant.district.name} - {participant.church.name}</p>
             </div>
-            
-            <Button 
-              onClick={confirmCheckin}
-              className="w-full"
-            >
+
+            <Button onClick={confirmCheckin} className="w-full">
               Confirmar Presença
             </Button>
-            
-            <Button 
+
+            <Button
               variant="outline"
               onClick={() => {
                 setParticipant(null);
@@ -152,10 +156,7 @@ export function CheckinPage() {
             </Button>
           </div>
         ) : (
-          <Button 
-            onClick={() => setScanning(true)}
-            className="w-full"
-          >
+          <Button onClick={() => setScanning(true)} className="w-full">
             Iniciar Scanner
           </Button>
         )}
