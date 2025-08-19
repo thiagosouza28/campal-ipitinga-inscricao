@@ -140,7 +140,7 @@ export function RegistrationManagement() {
   // Gerar relatório PDF
   const generateReport = (type: ReportType, selectedId?: string) => {
     let reportData = filteredRegistrations;
-    let reportTitle = "CAMPAL IPITINGA 2025";
+    let reportTitle = "CAMPAL 2025 - IPITINGA";
     let reportSubtitle = "Relatório Geral de Inscrições";
 
     if (type === "district" && selectedId) {
@@ -165,32 +165,37 @@ export function RegistrationManagement() {
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
+    const primary: [number, number, number] = [197, 71, 52];
+    const accent: [number, number, number] = [52, 71, 197];
 
-    // Cabeçalho
-    doc.setFillColor(34, 197, 94);
+    // Cabeçalho estilizado
+    doc.setFillColor(primary[0], primary[1], primary[2]);
     doc.rect(0, 0, pageWidth, 35, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20).setFont("helvetica", "bold");
     doc.text(reportTitle, pageWidth / 2, 15, { align: "center" });
-    doc.setFontSize(14).setFont("helvetica", "normal");
-    doc.text(reportSubtitle, pageWidth / 2, 25, { align: "center" });
+    doc.setFontSize(13);
+    doc.text(reportSubtitle, pageWidth / 2, 27, { align: "center" });
+
+    // Linha divisória
+    doc.setDrawColor(accent[0], accent[1], accent[2]);
+    doc.setLineWidth(0.7);
+    doc.line(15, 38, pageWidth - 15, 38);
 
     // Resumo
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12).setFont("helvetica", "bold");
-    doc.text("RESUMO", 20, 50);
-
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(primary[0], primary[1], primary[2]);
+    doc.text("RESUMO", 20, 48);
     doc.setFont("helvetica", "normal");
-    doc.text(`Total de Inscrições: ${total}`, 20, 60);
-    doc.text(`Pagamentos Confirmados: ${paid}`, 20, 70);
-    doc.text(`Pagamentos Pendentes: ${pending}`, 20, 80);
-    doc.text(
-      `Data do Relatório: ${new Date().toLocaleDateString("pt-BR")}`,
-      20,
-      90
-    );
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Total de Inscrições: ${total}`, 20, 56);
+    doc.text(`Pagamentos Confirmados: ${paid}`, 20, 63);
+    doc.text(`Pagamentos Pendentes: ${pending}`, 20, 70);
+    doc.text(`Data do Relatório: ${new Date().toLocaleDateString("pt-BR")}`, 20, 77);
 
-    // Tabela
+    // Tabela estilizada
     if (reportData.length > 0) {
       const tableData = reportData.map((reg) => [
         reg.full_name,
@@ -204,23 +209,22 @@ export function RegistrationManagement() {
       autoTable(doc, {
         head: [["Nome", "Idade", "Distrito", "Igreja", "Status", "Método", "Data"]],
         body: tableData,
-        startY: 100,
-        styles: { fontSize: 9, cellPadding: 3 },
+        startY: 85,
+        styles: { fontSize: 10, cellPadding: 3, font: "helvetica" },
         headStyles: {
-          fillColor: [34, 197, 94],
+          fillColor: primary,
           textColor: [255, 255, 255],
           fontStyle: "bold",
         },
         alternateRowStyles: { fillColor: [249, 250, 251] },
-        margin: { top: 100, left: 15, right: 15 },
+        margin: { left: 15, right: 15 },
       });
 
+      // Estatísticas por distrito (opcional)
       if (type === "general") {
         const districtStats = districts
           .map((district) => {
-            const districtRegs = reportData.filter(
-              (r) => r.district_id === district.id
-            );
+            const districtRegs = reportData.filter((r) => r.district_id === district.id);
             return [
               district.name,
               districtRegs.length.toString(),
@@ -234,10 +238,10 @@ export function RegistrationManagement() {
           autoTable(doc, {
             head: [["Distrito", "Total", "Pagos", "Pendentes"]],
             body: districtStats,
-            startY: (doc as any).lastAutoTable.finalY + 20,
-            styles: { fontSize: 10, cellPadding: 4 },
+            startY: (doc as any).lastAutoTable.finalY + 15,
+            styles: { fontSize: 10, cellPadding: 4, font: "helvetica" },
             headStyles: {
-              fillColor: [59, 130, 246],
+              fillColor: accent,
               textColor: [255, 255, 255],
               fontStyle: "bold",
             },
@@ -255,7 +259,7 @@ export function RegistrationManagement() {
       );
     }
 
-    // Rodapé
+    // Rodapé estilizado
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -307,7 +311,15 @@ export function RegistrationManagement() {
   };
 
   if (loading) {
-    return <div className="flex justify-center p-8">Carregando...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh]">
+        <div className="relative w-12 h-12 mb-4">
+          <div className="absolute inset-0 rounded-full border-4 border-event-primary border-t-transparent animate-spin"></div>
+          <div className="absolute inset-2 rounded-full border-2 border-blue-300 border-t-transparent animate-spin-slow"></div>
+        </div>
+        <span className="text-lg font-semibold text-event-primary">Carregando inscrições...</span>
+      </div>
+    );
   }
 
   return (
@@ -414,8 +426,8 @@ export function RegistrationManagement() {
           </div>
 
           {/* Tabela */}
-          <div className="border rounded-lg overflow-x-auto">
-            <Table>
+          <div className="border rounded-lg overflow-x-auto scrollbar-thin scrollbar-thumb-event-primary">
+            <Table className="text-sm font-sans">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
@@ -443,6 +455,7 @@ export function RegistrationManagement() {
                     <TableCell>
                       <Badge
                         variant={registration.payment_status === "paid" ? "default" : "secondary"}
+                        className="rounded-full px-2 py-1 text-xs"
                       >
                         {registration.payment_status === "paid" ? "Pago" : "Pendente"}
                         {registration.payment_method
@@ -463,19 +476,15 @@ export function RegistrationManagement() {
                           <>
                             <Button
                               size="sm"
-                              onClick={() =>
-                                handlePaymentAction(registration.id, "paid", "pix")
-                              }
-                              className="bg-green-600 hover:bg-green-700 text-xs"
+                              className="bg-gradient-to-r from-green-500 to-green-700 text-white rounded-full px-3 py-1 text-xs shadow"
+                              onClick={() => handlePaymentAction(registration.id, "paid", "pix")}
                             >
                               PIX
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() =>
-                                handlePaymentAction(registration.id, "paid", "cash")
-                              }
-                              className="bg-blue-600 hover:bg-blue-700 text-xs"
+                              className="bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full px-3 py-1 text-xs shadow"
+                              onClick={() => handlePaymentAction(registration.id, "paid", "cash")}
                             >
                               Dinheiro
                             </Button>
