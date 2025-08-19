@@ -1,15 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
-import { QrReader } from 'react-qr-reader';
-import { supabase } from '@/integrations/supabase/client';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { useState, useEffect, useRef } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { QrReader } from 'react-qr-reader';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ParticipantData {
   id: string;
@@ -31,7 +25,6 @@ export function CheckinPage() {
   const [scanning, setScanning] = useState(false);
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [confirmPaymentDialog, setConfirmPaymentDialog] = useState(false);
-  const { toast } = useToast();
   const lastTokenRef = useRef<string | null>(null);
   const [cameraDevices, setCameraDevices] = useState<{ deviceId: string; label: string }[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string | undefined>(undefined);
@@ -42,9 +35,9 @@ export function CheckinPage() {
       .then(devices => {
         const videoDevices = devices
           .filter(device => device.kind === 'videoinput')
-          .map(device => ({
+          .map((device, idx) => ({
             deviceId: device.deviceId,
-            label: device.label || `Câmera ${cameraDevices.length + 1}`
+            label: device.label || `Câmera ${idx + 1}`
           }));
         setCameraDevices(videoDevices);
         if (videoDevices.length > 0 && !selectedCamera) {
@@ -110,12 +103,71 @@ export function CheckinPage() {
   const confirmCheckin = async () => {
     if (!participant) return;
 
-    if (participant.payment_status !== "paid") {
-      setConfirmPaymentDialog(true);
-      return;
-    }
+    try {
+      // Corrige erro de sessão ausente: sempre recupera sessão antes de qualquer chamada
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        toast({
+          title: "Erro de autenticação",
+          description: "Sessão não encontrada. Faça login novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    await doCheckin();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        toast({
+          title: "Erro de autenticação",
+          description: "Usuário não encontrado. Faça login novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Só permite check-in se pagamento estiver confirmado
+      if (participant.payment_status !== "paid") {
+        toast({
+          title: "Pagamento não confirmado",
+          description: "Só é possível confirmar presença após o pagamento.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const updateData: any = {
+        checkin_status: true,
+        checkin_datetime: getBrazilDateTime().toISOString(),
+        checkin_by: userData.user.id,
+      };
+
+      const { error } = await supabase
+        .from('registrations')
+        .update(updateData)
+        .eq('id', participant.id);
+
+      if (error) throw error;
+
+      await supabase.from("registration_history").insert({
+        registration_id: participant.id,
+        action: "checkin",
+        details: {},
+        performed_by: userData.user.id,
+      });
+
+      toast({
+        title: "Check-in realizado com sucesso!",
+        description: "Participante pode entrar no evento",
+      });
+
+      setParticipant(null);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao confirmar check-in",
+        description: error?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    }
   };
 
   const doCheckin = async () => {
@@ -210,7 +262,7 @@ export function CheckinPage() {
       <CardContent>
         {scanning ? (
           <>
-            {cameraDevices.length > 1 && (
+            {cameraDevices.length > 0 && (
               <div className="mb-2">
                 <label className="block text-sm font-medium mb-1">Escolha a câmera:</label>
                 <select
@@ -276,27 +328,6 @@ export function CheckinPage() {
           </Button>
         )}
       </CardContent>
-
-      {/* Dialog para confirmar pagamento */}
-      <Dialog open={confirmPaymentDialog} onOpenChange={setConfirmPaymentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmar Pagamento</DialogTitle>
-            <DialogDescription>
-              O pagamento deste participante ainda não foi confirmado.<br />
-              Deseja confirmar o pagamento agora e realizar o check-in?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2 mt-4">
-            <Button className="flex-1" onClick={confirmPaymentAndCheckin}>
-              Sim, confirmar pagamento e check-in
-            </Button>
-            <Button className="flex-1" variant="outline" onClick={() => setConfirmPaymentDialog(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
