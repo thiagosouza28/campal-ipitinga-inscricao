@@ -108,110 +108,144 @@ export function RegistrationForm() {
     }
   };
 
-  const generateReceipt = async (data: FormData, registrationId: string, age: number, checkin_token: string) => {
+  const generateReceipt = async (
+    data: FormData,
+    registrationId: string,
+    age: number,
+    checkin_token: string
+  ) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
 
-    // Cabeçalho
-    doc.setFillColor(197, 71, 52);
-    doc.rect(0, 0, pageWidth, 40, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CAMPAL 2025 - IPITINGA', pageWidth / 2, 15, { align: 'center' });
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'normal');
-    doc.text('FORTES NA PALAVRA', pageWidth / 2, 25, { align: 'center' });
-    doc.setFontSize(12);
-    doc.text('COMPROVANTE DE INSCRIÇÃO', pageWidth / 2, 35, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
+    // Cores
+    const primary = [197, 71, 52];
+    const accent = [52, 71, 197];
 
-    // Dados da inscrição
-    const district = districts.find(d => d.id === data.district_id);
-    const church = churches.find(c => c.id === data.church_id);
+    // Cabeçalho estilizado
+    doc.setFillColor(primary[0], primary[1], primary[2]);
+    doc.rect(0, 0, pageWidth, 30, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(255, 255, 255);
+    doc.text("CAMPAL 2025 - IPITINGA", pageWidth / 2, 12, { align: "center" });
+    doc.setFontSize(13);
+    doc.text("FORTES NA PALAVRA", pageWidth / 2, 22, { align: "center" });
+
+    // Protocolo destacado
+    doc.setFontSize(11);
+    doc.setTextColor(primary[0], primary[1], primary[2]);
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      `PROTOCOLO: ${registrationId.substring(0, 8).toUpperCase()}`,
+      pageWidth / 2,
+      36,
+      { align: "center" }
+    );
+
+    // Linha divisória
+    doc.setDrawColor(accent[0], accent[1], accent[2]);
+    doc.setLineWidth(0.7);
+    doc.line(15, 40, pageWidth - 15, 40);
+
+    // Dados do participante
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    let y = 48;
+    const district = districts.find((d) => d.id === data.district_id);
+    const church = churches.find((c) => c.id === data.church_id);
+
     const details = [
       `Nome: ${data.full_name}`,
-      `Data de Nascimento: ${data.birth_date.split('-').reverse().join('/')}`,
+      `Nascimento: ${data.birth_date.split("-").reverse().join("/")}`,
       `Idade: ${age} anos`,
-      `Distrito: ${district?.name || 'N/A'}`,
-      `Igreja: ${church?.name || 'N/A'}`,
-      `Valor: ${age <= 10 ? 'GRATUITO (até 10 anos)' : 'R$ 10,00'}`,
-      `Data de Inscrição: ${new Date().toLocaleDateString('pt-BR')}`,
-      `Protocolo: ${registrationId.substring(0, 8).toUpperCase()}`,
+      `Distrito: ${district?.name || "N/A"}`,
+      `Igreja: ${church?.name || "N/A"}`,
+      `Valor: ${age <= 10 ? "GRATUITO (até 10 anos)" : "R$ 10,00"}`,
+      `Inscrição: ${new Date().toLocaleDateString("pt-BR")}`,
     ];
 
-    let yPosition = 60;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DADOS DA INSCRIÇÃO', 20, yPosition - 5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(12);
-    details.forEach(detail => {
-      doc.text(detail, 20, yPosition);
-      yPosition += 8;
+    details.forEach((detail) => {
+      doc.text(detail, 20, y);
+      y += 8;
     });
 
+    // QR Code centralizado
+    const qrUrl = await generateQRCodeImage(checkin_token);
+    if (qrUrl) {
+      doc.addImage(qrUrl, "PNG", pageWidth / 2 - 20, y + 5, 40, 40);
+      doc.setFontSize(10);
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text(
+        "Apresente este QR Code para check-in",
+        pageWidth / 2,
+        y + 48,
+        { align: "center" }
+      );
+      y += 55;
+    } else {
+      y += 10;
+    }
+
+    // Linha divisória
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(15, y, pageWidth - 15, y);
+    y += 8;
+
     // Informações do evento
-    yPosition += 10;
-    doc.setFont('helvetica', 'bold');
-    doc.text('INFORMAÇÕES DO EVENTO', 20, yPosition);
-    yPosition += 10;
-    doc.setFont('helvetica', 'normal');
-    const eventDetails = [
-      'Data: 26, 27 e 28 de Setembro de 2025',
-      'Local: CATRE IPITINGA',
-      'Tema: FORTES NA PALAVRA',
-      'Prazo para pagamento: até 15 de setembro de 2025'
-    ];
-    eventDetails.forEach(detail => {
-      doc.text(detail, 20, yPosition);
-      yPosition += 8;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(primary[0], primary[1], primary[2]);
+    doc.text("INFORMAÇÕES DO EVENTO", 20, y);
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    [
+      "Data: 26, 27 e 28 de Setembro de 2025",
+      "Local: CATRE IPITINGA",
+      "Tema: FORTES NA PALAVRA",
+      "Pagamento até 15/09/2025",
+      "Pix: (91) 99332-0376 - Thiago de Souza Teles",
+      "Banco: PagSeguro",
+      "Envie comprovante: (91) 98200-5371",
+      "Crianças até 10 anos não pagam",
+    ].forEach((info) => {
+      doc.text(info, 20, y);
+      y += 7;
     });
 
     // Observações importantes
-    yPosition += 10;
-    doc.setFont('helvetica', 'bold');
-    doc.text('OBSERVAÇÕES IMPORTANTES', 20, yPosition);
-    yPosition += 10;
-    doc.setFont('helvetica', 'normal');
-    const notes = [
-      '🌟 Convite para o CAMPAL IPITINGA 2025! 🌟',
-      '📍 Local: CATRE IPITINGA',
-      '📅 Datas: 26, 27 e 28 de setembro',
-      '💵 Valor da inscrição: R$ 10,00 (para participantes acima de 10 anos)',
-      '⏰ Prazo para pagamento: até 15 de setembro',
-      '🔗 Link de inscrição: https://campal-ipitinga.vercel.app/inscricao',
-      '💰 Pagamento via Pix:',
-      '   - Chave: (91) 99332-0376',
-      '   - Nome: Thiago de Souza Teles',
-      '   - Banco: PagSeguro',
-      '📲 Envie o comprovante pelo WhatsApp: https://wa.me/5591982005371?text=Olá%2C%20estou%20enviando%20o%20comprovante%20da%20minha%20inscrição%20para%20o%20CAMPAL%20IPITINGA%202025',
-      '✨ Garanta já sua inscrição e venha viver momentos incríveis conosco!',
-      '• Mantenha este comprovante para apresentação no evento',
-      '• Crianças até 10 anos não pagam inscrição',
-      '• Pagamento pode ser feito via PIX ou dinheiro',
-      '• Em caso de dúvidas, entre em contato pelo WhatsApp',
-      '  (91) 98200-5371 - Thiago Teles'
-    ];
-    notes.forEach(note => {
-      doc.text(note, 20, yPosition);
-      yPosition += 8;
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.text("OBSERVAÇÕES IMPORTANTES", 20, y);
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    [
+      "Mantenha este comprovante para apresentação no evento.",
+      "Pagamento pode ser feito via PIX ou dinheiro.",
+      "Em caso de dúvidas, entre em contato pelo WhatsApp (91) 98200-5371 - Thiago Teles.",
+    ].forEach((note) => {
+      doc.text(note, 20, y);
+      y += 6;
     });
 
-    // QR Code
-    const qrUrl = await generateQRCodeImage(checkin_token);
-    if (qrUrl) {
-      doc.addImage(qrUrl, 'PNG', pageWidth - 60, yPosition + 10, 40, 40);
-      doc.setFontSize(10);
-      doc.text('Use este QR Code para fazer check-in no evento', pageWidth - 40, yPosition + 55, { align: 'center' });
-    }
-
-    // Footer
+    // Rodapé
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
-    doc.text(`Comprovante gerado em ${new Date().toLocaleString('pt-BR')}`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+    doc.text(
+      `Comprovante gerado em ${new Date().toLocaleString("pt-BR")}`,
+      pageWidth / 2,
+      doc.internal.pageSize.height - 10,
+      { align: "center" }
+    );
 
-    const fileName = `campal-2025-inscricao-${data.full_name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    const fileName = `campal-2025-inscricao-${data.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
     doc.save(fileName);
   };
 
