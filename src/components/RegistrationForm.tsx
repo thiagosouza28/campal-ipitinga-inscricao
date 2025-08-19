@@ -26,6 +26,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar"; // Certifique-se de ter um componente de calendário
 
 const formSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -81,11 +82,12 @@ export function RegistrationForm() {
   };
 
   const formatDateString = (value: string) => {
-    if (!value) return "";
+    // Remove tudo que não é número
     let numbers = value.replace(/\D/g, '');
+    if (numbers.length === 0) return '';
     if (numbers.length <= 2) return numbers;
     if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
-    if (numbers.length <= 8) return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4)}`;
+    if (numbers.length <= 8) return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
     return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
   };
 
@@ -338,34 +340,59 @@ export function RegistrationForm() {
               <FormLabel className="flex items-center gap-2 text-base font-medium">
                 <Calendar className="h-4 w-4" /> Data de Nascimento
               </FormLabel>
-              <FormControl>
-                <div className="relative">
+              <div className="flex gap-2 items-center">
+                <FormControl>
                   <Input
+                    type="tel"
                     placeholder="DD/MM/AAAA"
-                    className="h-12 bg-white/70 border-0 focus:bg-white pr-12"
-                    value={field.value ? format(new Date(field.value), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                    className="h-12 bg-white/70 border-0 focus:bg-white"
+                    value={field.value
+                      ? (() => {
+                          // Se vier no formato ISO, converte para DD/MM/AAAA
+                          if (field.value.includes('-')) {
+                            const [year, month, day] = field.value.split('-');
+                            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+                          }
+                          return formatDateString(field.value);
+                        })()
+                      : ''}
                     onChange={(e) => {
                       const formatted = formatDateString(e.target.value);
-                      e.target.value = formatted;
-                      if (formatted.length === 10) field.onChange(parseDateToISO(formatted));
-                      else field.onChange("");
+                      field.onChange(formatted.length === 10 ? parseDateToISO(formatted) : formatted);
                     }}
-                    onBlur={field.onBlur}
                     maxLength={10}
                     inputMode="numeric"
+                    pattern="\d{2}/\d{2}/\d{4}"
                   />
-                  <div className="absolute right-0 top-0 h-full flex items-center pr-3">
-                    <Input
-                      type="date"
-                      className="absolute opacity-0 w-10 cursor-pointer"
-                      value={field.value || ''}
-                      onChange={(e) => { if (e.target.value) field.onChange(e.target.value); }}
-                      max={format(new Date(), 'yyyy-MM-dd')}
+                </FormControl>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-12 px-3"
+                      type="button"
+                      tabIndex={-1}
+                    >
+                      <Calendar className="h-5 w-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-auto">
+                    <CalendarPicker
+                      mode="single"
+                      selected={field.value && field.value.includes('-') ? new Date(field.value) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          const iso = date.toISOString().split('T')[0];
+                          field.onChange(iso);
+                        }
+                      }}
+                      captionLayout="dropdown"
+                      fromYear={1940}
+                      toYear={new Date().getFullYear()}
                     />
-                    <Calendar className="h-5 w-5 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-              </FormControl>
+                  </PopoverContent>
+                </Popover>
+              </div>
               <FormMessage />
             </FormItem>
           )} />

@@ -142,7 +142,9 @@ export function CheckinPage() {
   const confirmPaymentAndCheckin = async () => {
     if (!participant) return;
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+
       // Atualiza pagamento para "paid"
       const { error: payError } = await supabase
         .from('registrations')
@@ -151,23 +153,30 @@ export function CheckinPage() {
 
       if (payError) throw payError;
 
-      await supabase.from("registration_history").insert({
+      // Registra histórico do pagamento
+      const { error: histError } = await supabase.from("registration_history").insert({
         registration_id: participant.id,
         action: "payment",
         details: { method: "dinheiro" },
         performed_by: userData?.user?.id,
       });
 
-      // Atualiza o status local do participante para evitar erro de check-in
-      setParticipant(prev => prev ? { ...prev, payment_status: "paid", checkin_status: false } : prev);
+      if (histError) throw histError;
+
+      // Atualiza o status local do participante para garantir que o check-in será permitido
+      setParticipant(prev =>
+        prev
+          ? { ...prev, payment_status: "paid", checkin_status: false }
+          : prev
+      );
 
       // Faz o check-in
       await doCheckin();
       setConfirmPaymentDialog(false);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Erro ao confirmar pagamento",
-        description: "Tente novamente",
+        description: error?.message || "Tente novamente",
         variant: "destructive",
       });
       setConfirmPaymentDialog(false);
