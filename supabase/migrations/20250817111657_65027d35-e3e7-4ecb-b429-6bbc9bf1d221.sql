@@ -23,7 +23,7 @@ CREATE TABLE public.registrations (
   district_id UUID NOT NULL REFERENCES public.districts(id),
   church_id UUID NOT NULL REFERENCES public.churches(id),
   payment_status TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid')),
-  payment_method TEXT CHECK (payment_method IN ('pix', 'cash')),
+  payment_method TEXT CHECK (payment_method IN ('pix', 'dinheiro')),
   registration_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()

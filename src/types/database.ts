@@ -13,6 +13,7 @@ export interface Church {
 }
 
 export interface Registration {
+  checkin_token: any;
   id: string;
   full_name: string;
   birth_date: string;
@@ -20,7 +21,7 @@ export interface Registration {
   district_id: string;
   church_id: string;
   payment_status: 'pending' | 'paid';
-  payment_method?: 'pix' | 'cash';
+  payment_method?: 'pix' | 'dinheiro';
   registration_date: string;
   created_at: string;
   updated_at: string;
