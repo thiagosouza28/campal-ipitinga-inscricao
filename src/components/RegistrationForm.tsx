@@ -275,6 +275,7 @@ export function RegistrationForm() {
       if (result) {
         await generateReceipt({ ...data, birth_date: isoBirthDate }, result.id, age, checkin_token);
         setRegistrationData({ name: data.full_name, protocol: result.id.substring(0, 8).toUpperCase() });
+        form.reset(); // Limpa todos os campos após inscrição
       }
       setShowConfirmation(true);
     } catch (err) {
@@ -340,59 +341,30 @@ export function RegistrationForm() {
               <FormLabel className="flex items-center gap-2 text-base font-medium">
                 <Calendar className="h-4 w-4" /> Data de Nascimento
               </FormLabel>
-              <div className="flex gap-2 items-center">
-                <FormControl>
-                  <Input
-                    type="tel"
-                    placeholder="DD/MM/AAAA"
-                    className="h-12 bg-white/70 border-0 focus:bg-white"
-                    value={field.value
-                      ? (() => {
-                          // Se vier no formato ISO, converte para DD/MM/AAAA
-                          if (field.value.includes('-')) {
-                            const [year, month, day] = field.value.split('-');
-                            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-                          }
-                          return formatDateString(field.value);
-                        })()
-                      : ''}
-                    onChange={(e) => {
-                      const formatted = formatDateString(e.target.value);
-                      field.onChange(formatted.length === 10 ? parseDateToISO(formatted) : formatted);
-                    }}
-                    maxLength={10}
-                    inputMode="numeric"
-                    pattern="\d{2}/\d{2}/\d{4}"
-                  />
-                </FormControl>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-12 px-3"
-                      type="button"
-                      tabIndex={-1}
-                    >
-                      <Calendar className="h-5 w-5" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="p-0 w-auto">
-                    <CalendarPicker
-                      mode="single"
-                      selected={field.value && field.value.includes('-') ? new Date(field.value) : undefined}
-                      onSelect={(date) => {
-                        if (date) {
-                          const iso = date.toISOString().split('T')[0];
-                          field.onChange(iso);
+              <FormControl>
+                <Input
+                  type="tel"
+                  placeholder="DD/MM/AAAA"
+                  className="h-12 bg-white/70 border-0 focus:bg-white"
+                  value={field.value
+                    ? (() => {
+                        if (field.value.includes('-')) {
+                          const [year, month, day] = field.value.split('-');
+                          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
                         }
-                      }}
-                      captionLayout="dropdown"
-                      fromYear={1940}
-                      toYear={new Date().getFullYear()}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+                        return formatDateString(field.value);
+                      })()
+                    : ''}
+                  onChange={(e) => {
+                    const formatted = formatDateString(e.target.value);
+                    field.onChange(formatted.length === 10 ? parseDateToISO(formatted) : formatted);
+                  }}
+                  maxLength={10}
+                  inputMode="numeric"
+                  pattern="\d{2}/\d{2}/\d{4}"
+                  autoComplete="off"
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )} />

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { QrReader } from 'react-qr-reader';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -33,6 +33,25 @@ export function CheckinPage() {
   const [confirmPaymentDialog, setConfirmPaymentDialog] = useState(false);
   const { toast } = useToast();
   const lastTokenRef = useRef<string | null>(null);
+  const [cameraDevices, setCameraDevices] = useState<{ deviceId: string; label: string }[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    // Busca as câmeras disponíveis
+    navigator.mediaDevices.enumerateDevices()
+      .then(devices => {
+        const videoDevices = devices
+          .filter(device => device.kind === 'videoinput')
+          .map(device => ({
+            deviceId: device.deviceId,
+            label: device.label || `Câmera ${cameraDevices.length + 1}`
+          }));
+        setCameraDevices(videoDevices);
+        if (videoDevices.length > 0 && !selectedCamera) {
+          setSelectedCamera(videoDevices[0].deviceId);
+        }
+      });
+  }, []);
 
   const handleScan = async (result: any | null) => {
     if (!result) return;
@@ -190,22 +209,38 @@ export function CheckinPage() {
       </CardHeader>
       <CardContent>
         {scanning ? (
-          <div className="aspect-square overflow-hidden rounded-lg">
-            <QrReader
-              onResult={(result) => {
-                if (result) {
-                  handleScan(result);
-                }
-              }}
-              constraints={{
-                facingMode: { exact: 'environment' },
-                // Para celulares com múltiplas câmeras, tente usar a principal
-                // advanced: [{ zoom: 1.0 }] // Removido porque 'zoom' não é suportado
-              }}
-              containerStyle={{ width: '100%' }}
-              videoStyle={{ width: '100%' }}
-            />
-          </div>
+          <>
+            {cameraDevices.length > 1 && (
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1">Escolha a câmera:</label>
+                <select
+                  className="w-full border rounded px-2 py-1"
+                  value={selectedCamera}
+                  onChange={e => setSelectedCamera(e.target.value)}
+                >
+                  {cameraDevices.map(cam => (
+                    <option key={cam.deviceId} value={cam.deviceId}>
+                      {cam.label || cam.deviceId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="aspect-square overflow-hidden rounded-lg">
+              <QrReader
+                onResult={(result) => {
+                  if (result) {
+                    handleScan(result);
+                  }
+                }}
+                constraints={{
+                  deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
+                }}
+                containerStyle={{ width: '100%' }}
+                videoStyle={{ width: '100%' }}
+              />
+            </div>
+          </>
         ) : participant ? (
           <div className="space-y-4">
             <div className="rounded-lg bg-muted p-4">
