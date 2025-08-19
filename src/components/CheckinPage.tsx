@@ -158,6 +158,9 @@ export function CheckinPage() {
         performed_by: userData?.user?.id,
       });
 
+      // Atualiza o status local do participante para evitar erro de check-in
+      setParticipant(prev => prev ? { ...prev, payment_status: "paid", checkin_status: false } : prev);
+
       // Faz o check-in
       await doCheckin();
       setConfirmPaymentDialog(false);
@@ -185,7 +188,11 @@ export function CheckinPage() {
                   handleScan(result);
                 }
               }}
-              constraints={{ facingMode: { exact: 'environment' } }} // Usa a câmera principal traseira
+              constraints={{
+                facingMode: { exact: 'environment' },
+                // Para celulares com múltiplas câmeras, tente usar a principal
+                // advanced: [{ zoom: 1.0 }] // Removido porque 'zoom' não é suportado
+              }}
               containerStyle={{ width: '100%' }}
               videoStyle={{ width: '100%' }}
             />
