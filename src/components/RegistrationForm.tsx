@@ -393,14 +393,20 @@ export function RegistrationForm() {
             <FormField control={form.control} name="church_id" render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-2 text-base font-medium"><Church className="h-4 w-4" /> Igreja</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  disabled={!selectedDistrict} // Só habilita se distrito selecionado
+                >
                   <FormControl>
                     <SelectTrigger className="h-12 bg-white/70 border-0 focus:bg-white">
-                      <SelectValue placeholder="Selecione a igreja" />
+                      <SelectValue placeholder={selectedDistrict ? "Selecione a igreja" : "Selecione o distrito primeiro"} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {filteredChurches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    {filteredChurches.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />

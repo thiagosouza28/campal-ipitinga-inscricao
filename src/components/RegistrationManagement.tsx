@@ -75,7 +75,7 @@ export function RegistrationManagement() {
         .from("registration_history")
         .select("*")
         .eq("registration_id", historyDialog.registration.id)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false }) // Ordem decrescente: última alteração primeiro
         .then(({ data }) => setHistory(data || []));
     }
   }, [historyDialog]);
@@ -101,25 +101,124 @@ export function RegistrationManagement() {
     return matchesSearch && matchesDistrict && matchesChurch && matchesStatus;
   });
 
-  // Atualizar pagamento
+  // Excluir inscrição e salvar no histórico
+  const handleDelete = async (id: string) => {
+    if (!id) return;
+    try {
+      // Exclui do histórico primeiro (se houver FK)
+      await supabase.from("registration_history").delete().eq("registration_id", id);
+
+      // Exclui do banco de dados principal
+      const { error } = await supabase.from("registrations").delete().eq("id", id);
+      if (error) throw error;
+
+      toast({ title: "Inscrição excluída", description: "A inscrição foi removida." });
+      mutate();
+    } catch (error) {
+      toast({ title: "Erro ao excluir", description: "Tente novamente.", variant: "destructive" });
+    }
+  };
+
+  // Editar inscrição e salvar no histórico
+  const handleEditSubmit = async (dados: any, id: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      await supabase
+        .from("registrations")
+        .update({ ...dados }).eq("id", id);
+
+      await supabase.from("registration_history").insert({
+        registration_id: id,
+        action: "edited",
+        details: { ...dados },
+        performed_by: userId,
+        created_at: getBrazilDateTimeISO(),
+      });
+
+      toast({ title: "Inscrição editada", description: "Dados atualizados." });
+      setEditDialog({ open: false });
+      mutate();
+    } catch (error) {
+      toast({ title: "Erro ao editar", description: "Tente novamente.", variant: "destructive" });
+    }
+  };
+
+  // Cancelar inscrição e salvar no histórico
+  const handleCancel = async (id: string) => {
+    if (!id) return;
+    try {
+      // O campo correto para cancelar deve ser o mesmo do banco, geralmente "status"
+      // Certifique-se que o campo existe e aceita o valor "cancelled"
+      const { error } = await supabase
+        .from("registrations")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      await supabase.from("registration_history").insert({
+        registration_id: id,
+        action: "cancelled",
+        details: {},
+        performed_by: userId,
+        created_at: getBrazilDateTimeISO(),
+      });
+
+      toast({ title: "Inscrição cancelada", description: "Status alterado para cancelado." });
+      mutate();
+    } catch (error) {
+      toast({ title: "Erro ao cancelar", description: "Tente novamente.", variant: "destructive" });
+    }
+  };
+
+  // Atualizar pagamento e salvar no histórico
   const updatePaymentStatus = async (
     id: string,
     status: "pending" | "paid",
     method?: "pix" | "cash"
   ) => {
     try {
+      let updateData: any;
+      let action = "";
+      let details: any = {};
+      if (status === "paid") {
+        updateData = { payment_status: "paid", payment_method: method };
+        action = "payment";
+        details = { method };
+      } else {
+        updateData = { payment_status: "pending", payment_method: null };
+        action = "payment_cancelled";
+        details = {};
+      }
+
       const { error } = await supabase
         .from("registrations")
-        .update({ payment_status: "paid", payment_method: method })
+        .update(updateData)
         .eq("id", id);
 
       if (error) throw error;
 
+      // Salva no histórico
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      await supabase.from("registration_history").insert({
+        registration_id: id,
+        action,
+        details,
+        performed_by: userId,
+        created_at: getBrazilDateTimeISO(),
+      });
+
       toast({
         title: "Status atualizado",
-        description: `Pagamento ${status === "paid" ? "confirmado" : "marcado como pendente"
-          }.`,
+        description: status === "paid"
+          ? "Pagamento confirmado."
+          : "Pagamento desfeito, marcado como pendente.",
       });
+
       mutate();
     } catch (error) {
       toast({
@@ -477,55 +576,6 @@ export function RegistrationManagement() {
     payable: filteredRegistrations.filter((r) => r.age > 10).length,
   };
 
-  // Excluir inscrição
-  const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta inscrição?")) {
-      const { error } = await supabase.from("registrations").delete().eq("id", id);
-      if (!error) {
-        toast({ title: "Inscrição excluída", description: "A inscrição foi removida." });
-        mutate();
-      } else {
-        toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
-      }
-    }
-  };
-
-  // Cancelar inscrição (status)
-  const handleCancel = async (id: string) => {
-    if (confirm("Deseja cancelar esta inscrição?")) {
-      const { error } = await supabase
-        .from("registrations")
-        .update({ status: "cancelled" })
-        .eq("id", id);
-      if (!error) {
-        // Registrar histórico
-        const { data: { user } } = await supabase.auth.getUser();
-        const userId = user?.id;
-        await supabase.from("registration_history").insert({
-          registration_id: id,
-          action: "cancelled", // ou "edited", "deleted", "checkin", "payment"
-          details: { /* dados relevantes */ },
-          performed_by: userId
-        });
-
-        toast({ title: "Inscrição cancelada", description: "Status alterado para cancelado." });
-        mutate();
-      } else {
-        toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
-      }
-    }
-  };
-
-  // Editar inscrição (abra um modal/formulário)
-  const openEditDialog = (registration: Registration) => {
-    // Implemente um modal para editar os dados e salvar no banco
-  };
-
-  // Abrir histórico (abra um modal com o histórico de alterações)
-  const openHistoryDialog = (registrationId: string) => {
-    // Implemente um modal para mostrar o histórico de alterações da inscrição
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh]">
@@ -684,13 +734,12 @@ export function RegistrationManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2 flex-wrap">
-
                         {/* Confirmar pagamento PIX/Dinheiro */}
                         {registration.payment_status === "pending" ? (
                           <>
                             <Button
                               size="icon"
-                              variant="outline"
+                              variant="ghost"
                               onClick={() => handlePaymentAction(registration.id, "paid", "pix")}
                               title="Confirmar pagamento PIX"
                             >
@@ -698,7 +747,7 @@ export function RegistrationManagement() {
                             </Button>
                             <Button
                               size="icon"
-                              variant="outline"
+                              variant="ghost"
                               onClick={() => handlePaymentAction(registration.id, "paid", "cash")}
                               title="Confirmar pagamento Dinheiro"
                             >
@@ -710,32 +759,32 @@ export function RegistrationManagement() {
                             size="icon"
                             variant="ghost"
                             onClick={() => handlePaymentAction(registration.id, "pending")}
-                            title="Desfazer"
+                            title="Desfazer Pagamento"
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         ) : null}
 
-                        {/* Comprovante */}
+                        {/* Comprovante de inscrição: sempre disponível */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={async () => await generateReceipt(registration, false)}
+                          title="Comprovante de Inscrição"
+                        >
+                          <FileText className="h-4 w-4 text-green-600" />
+                        </Button>
+
+                        {/* Comprovante de pagamento: só se pago */}
                         {registration.payment_status === "paid" && (
-                          <>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={async () => await generateReceipt(registration, false)}
-                              title="Comprovante de Inscrição"
-                            >
-                              <FileText className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={async () => await generateReceipt(registration, true)}
-                              title="Comprovante de Pagamento"
-                            >
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                            </Button>
-                          </>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={async () => await generateReceipt(registration, true)}
+                            title="Comprovante de Pagamento"
+                          >
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </Button>
                         )}
 
                         {/* Editar */}
@@ -794,36 +843,81 @@ export function RegistrationManagement() {
             <DialogTitle>Editar Inscrição</DialogTitle>
           </DialogHeader>
           <form
+            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
             onSubmit={async (e) => {
               e.preventDefault();
               const form = e.target as typeof e.target & {
                 nome: { value: string };
-                // Adicione outros campos conforme necessário
+                distrito: { value: string };
+                igreja: { value: string };
+                nascimento: { value: string };
               };
               const dados = {
                 full_name: form.nome.value,
-                // Adicione outros campos aqui
+                birth_date: form.nascimento.value,
+                district_id: form.distrito.value,
+                church_id: form.igreja.value,
               };
               const id = editDialog.registration?.id;
-              const { data: { user } } = await supabase.auth.getUser();
-              const userId = user?.id;
-              await supabase
-                .from("registrations")
-                .update({ ...dados }).eq("id", id);
-              await supabase.from("registration_history").insert({
-                registration_id: id,
-                action: "edited",
-                details: { ...dados },
-                performed_by: userId,
-              });
-              setEditDialog({ open: false });
-              mutate();
+              await handleEditSubmit(dados, id);
             }}
           >
-            {/* Campos do formulário */}
-            <Input name="nome" defaultValue={editDialog.registration?.full_name} />
-            {/* ...outros campos... */}
-            <Button type="submit">Salvar</Button>
+            <div>
+              <label className="block text-sm font-medium mb-1">Nome Completo</label>
+              <Input name="nome" defaultValue={editDialog.registration?.full_name} placeholder="Nome" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Distrito</label>
+              <Select name="distrito" defaultValue={editDialog.registration?.district_id}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Distrito" />
+                </SelectTrigger>
+                <SelectContent>
+                  {districts.map((district) => (
+                    <SelectItem key={district.id} value={district.id}>
+                      {district.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Igreja</label>
+              <Select name="igreja" defaultValue={editDialog.registration?.church_id}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Igreja" />
+                </SelectTrigger>
+                <SelectContent>
+                  {churches.map((church) => (
+                    <SelectItem key={church.id} value={church.id}>
+                      {church.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium mb-1">Data de Nascimento</label>
+              <Input
+                name="nascimento"
+                type="text"
+                defaultValue={editDialog.registration?.birth_date}
+                placeholder="DD/MM/AAAA"
+                maxLength={10}
+                inputMode="numeric"
+                pattern="\d{2}/\d{2}/\d{4}"
+                onInput={e => {
+                  const input = e.currentTarget;
+                  let value = input.value.replace(/\D/g, "");
+                  if (value.length > 2) value = value.slice(0, 2) + "/" + value.slice(2);
+                  if (value.length > 5) value = value.slice(0, 5) + "/" + value.slice(5, 9);
+                  input.value = value;
+                }}
+              />
+            </div>
+            <div className="sm:col-span-2 flex justify-end">
+              <Button type="submit">Salvar Alterações</Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -838,17 +932,8 @@ export function RegistrationManagement() {
           <Button
             variant="destructive"
             onClick={async () => {
-              await supabase.from("registrations").delete().eq("id", deleteDialog.registration?.id);
-              const { data: { user } } = await supabase.auth.getUser();
-              const userId = user?.id;
-              await supabase.from("registration_history").insert({
-                registration_id: deleteDialog.registration?.id,
-                action: "deleted",
-                details: {},
-                performed_by: userId,
-              });
+              await handleDelete(deleteDialog.registration?.id);
               setDeleteDialog({ open: false });
-              mutate();
             }}
           >
             Confirmar Exclusão
@@ -882,11 +967,18 @@ export function RegistrationManagement() {
             <DialogTitle>Histórico da Inscrição</DialogTitle>
           </DialogHeader>
           <ul>
-            {history.map((h) => (
-              <li key={h.id}>
-                <strong>{h.action}</strong> - {new Date(h.created_at).toLocaleString("pt-BR")}
-              </li>
-            ))}
+            {history.map((h) => {
+              // Ajusta para fuso horário de Brasília (UTC-3)
+              const date = new Date(h.created_at);
+              // Converte para UTC e aplica offset de -3 horas
+              const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+              const brazilDate = new Date(utc + 3600000 * -3);
+              return (
+                <li key={h.id}>
+                  <strong>{h.action}</strong> - {brazilDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                </li>
+              );
+            })}
           </ul>
         </DialogContent>
       </Dialog>
@@ -910,4 +1002,19 @@ async function generateQRCodeImage(token: string): Promise<string> {
   } catch {
     return "";
   }
+}
+
+// Função para pegar a hora atual do Brasil (UTC-3) corretamente
+function getBrazilDateTimeISO() {
+  // Usa a hora do sistema e força o fuso horário -03:00
+  const now = new Date();
+  // Pega os componentes de data/hora do sistema
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  // Monta a string ISO com offset -03:00
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}-03:00`;
 }
