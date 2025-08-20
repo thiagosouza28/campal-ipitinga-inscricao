@@ -42,7 +42,6 @@ export function CheckinPage() {
         const videoDevices = devices
           .filter(device => device.kind === 'videoinput')
           .map((device, idx) => {
-            // Tenta identificar se é frontal ou traseira pelo label
             const label = device.label.toLowerCase();
             let type = "Desconhecida";
             if (label.includes("front")) type = "Frontal";
@@ -56,8 +55,15 @@ export function CheckinPage() {
             };
           });
         setCameraDevices(videoDevices);
-        if (videoDevices.length > 0 && !selectedCamera) {
-          setSelectedCamera(videoDevices[0].deviceId);
+
+        // Tenta salvar a última câmera selecionada ou força a principal (traseira)
+        const savedCamera = localStorage.getItem('selectedCamera');
+        if (savedCamera && videoDevices.some(cam => cam.deviceId === savedCamera)) {
+          setSelectedCamera(savedCamera);
+        } else {
+          // Prioriza a traseira, senão pega a primeira
+          const mainCam = videoDevices.find(cam => cam.type === "Traseira") || videoDevices[0];
+          if (mainCam) setSelectedCamera(mainCam.deviceId);
         }
       });
   }, []);
@@ -244,6 +250,11 @@ export function CheckinPage() {
     }
   };
 
+  const handleCameraChange = (deviceId: string) => {
+    setSelectedCamera(deviceId);
+    localStorage.setItem('selectedCamera', deviceId);
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -258,7 +269,7 @@ export function CheckinPage() {
                 <select
                   className="w-full border rounded px-2 py-1"
                   value={selectedCamera}
-                  onChange={e => setSelectedCamera(e.target.value)}
+                  onChange={e => handleCameraChange(e.target.value)}
                 >
                   {cameraDevices.map(cam => (
                     <option key={cam.deviceId} value={cam.deviceId}>
@@ -277,6 +288,7 @@ export function CheckinPage() {
                 }}
                 constraints={{
                   deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
+                  // advanced: [{ zoom: 1.0 }], // zoom não suportado pelo tipo
                 }}
                 containerStyle={{ width: '100%' }}
                 videoStyle={{ width: '100%' }}
