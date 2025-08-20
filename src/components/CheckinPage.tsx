@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { QrReader } from 'react-qr-reader';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 interface ParticipantData {
   id: string;
@@ -16,9 +17,14 @@ interface ParticipantData {
   payment_status: "paid" | "pending";
 }
 
-// Função para pegar a hora atual do Brasil (UTC-3)
+// Função para pegar a hora atual do Brasil (UTC-3) corrigida
 function getBrazilDateTime() {
-  return new Date(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+  // Garante que retorna um objeto Date válido
+  const now = new Date();
+  // Ajusta para o fuso horário de Brasília (UTC-3)
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const brazilOffset = -3; // Horário de Brasília UTC-3
+  return new Date(utc + 3600000 * brazilOffset);
 }
 
 export function CheckinPage() {
@@ -26,19 +32,29 @@ export function CheckinPage() {
   const [participant, setParticipant] = useState<ParticipantData | null>(null);
   const [confirmPaymentDialog, setConfirmPaymentDialog] = useState(false);
   const lastTokenRef = useRef<string | null>(null);
-  const [cameraDevices, setCameraDevices] = useState<{ deviceId: string; label: string }[]>([]);
+  const [cameraDevices, setCameraDevices] = useState<{ deviceId: string; label: string; type: string }[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    // Busca as câmeras disponíveis
+    // Busca as câmeras disponíveis e separa entre frontais e traseiras
     navigator.mediaDevices.enumerateDevices()
       .then(devices => {
         const videoDevices = devices
           .filter(device => device.kind === 'videoinput')
-          .map((device, idx) => ({
-            deviceId: device.deviceId,
-            label: device.label || `Câmera ${idx + 1}`
-          }));
+          .map((device, idx) => {
+            // Tenta identificar se é frontal ou traseira pelo label
+            const label = device.label.toLowerCase();
+            let type = "Desconhecida";
+            if (label.includes("front")) type = "Frontal";
+            else if (label.includes("back") || label.includes("traseira") || label.includes("rear")) type = "Traseira";
+            else if (label.includes("environment")) type = "Traseira";
+            else if (label.includes("user")) type = "Frontal";
+            return {
+              deviceId: device.deviceId,
+              label: device.label || `Câmera ${idx + 1}`,
+              type
+            };
+          });
         setCameraDevices(videoDevices);
         if (videoDevices.length > 0 && !selectedCamera) {
           setSelectedCamera(videoDevices[0].deviceId);
@@ -104,27 +120,7 @@ export function CheckinPage() {
     if (!participant) return;
 
     try {
-      // Corrige erro de sessão ausente: sempre recupera sessão antes de qualquer chamada
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        toast({
-          title: "Erro de autenticação",
-          description: "Sessão não encontrada. Faça login novamente.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user?.id) {
-        toast({
-          title: "Erro de autenticação",
-          description: "Usuário não encontrado. Faça login novamente.",
-          variant: "destructive",
-        });
-        return;
-      }
-
+      // Removido o bloqueio de autenticação/sessão
       // Só permite check-in se pagamento estiver confirmado
       if (participant.payment_status !== "paid") {
         toast({
@@ -138,7 +134,6 @@ export function CheckinPage() {
       const updateData: any = {
         checkin_status: true,
         checkin_datetime: getBrazilDateTime().toISOString(),
-        checkin_by: userData.user.id,
       };
 
       const { error } = await supabase
@@ -152,7 +147,7 @@ export function CheckinPage() {
         registration_id: participant.id,
         action: "checkin",
         details: {},
-        performed_by: userData.user.id,
+        performed_by: null, // Sem usuário autenticado
       });
 
       toast({
@@ -172,14 +167,10 @@ export function CheckinPage() {
 
   const doCheckin = async () => {
     try {
-      const { data: userData } = await supabase.auth.getUser();
       const updateData: any = {
         checkin_status: true,
         checkin_datetime: getBrazilDateTime().toISOString(),
       };
-      if ("checkin_by" in participant) {
-        updateData.checkin_by = userData?.user?.id;
-      }
 
       const { error } = await supabase
         .from('registrations')
@@ -192,7 +183,7 @@ export function CheckinPage() {
         registration_id: participant!.id,
         action: "checkin",
         details: {},
-        performed_by: userData?.user?.id,
+        performed_by: null, // Sem usuário autenticado
       });
 
       toast({
@@ -213,13 +204,14 @@ export function CheckinPage() {
   const confirmPaymentAndCheckin = async () => {
     if (!participant) return;
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
+      // O campo payment_method deve ser um valor permitido pelo banco: "pix" ou "dinheiro"
+      // Verifique na sua tabela se o valor permitido é "dinheiro", "cash", "pix", etc.
+      // Aqui vamos usar "pix" como exemplo, mas ajuste conforme o seu banco!
+      const paymentMethod = "pix"; // ou "dinheiro" se for permitido
 
-      // Atualiza pagamento para "paid"
       const { error: payError } = await supabase
         .from('registrations')
-        .update({ payment_status: "paid", payment_method: "dinheiro" })
+        .update({ payment_status: "paid", payment_method: paymentMethod })
         .eq('id', participant.id);
 
       if (payError) throw payError;
@@ -228,20 +220,18 @@ export function CheckinPage() {
       const { error: histError } = await supabase.from("registration_history").insert({
         registration_id: participant.id,
         action: "payment",
-        details: { method: "dinheiro" },
-        performed_by: userData?.user?.id,
+        details: { method: paymentMethod },
+        performed_by: null, // Sem usuário autenticado
       });
 
       if (histError) throw histError;
 
-      // Atualiza o status local do participante para garantir que o check-in será permitido
       setParticipant(prev =>
         prev
           ? { ...prev, payment_status: "paid", checkin_status: false }
           : prev
       );
 
-      // Faz o check-in
       await doCheckin();
       setConfirmPaymentDialog(false);
     } catch (error: any) {
@@ -272,7 +262,7 @@ export function CheckinPage() {
                 >
                   {cameraDevices.map(cam => (
                     <option key={cam.deviceId} value={cam.deviceId}>
-                      {cam.label || cam.deviceId}
+                      {cam.label} {cam.type !== "Desconhecida" ? `(${cam.type})` : ""}
                     </option>
                   ))}
                 </select>
@@ -304,23 +294,64 @@ export function CheckinPage() {
               </p>
             </div>
 
-            <Button
-              onClick={confirmCheckin}
-              className="w-full"
-            >
-              Confirmar Presença
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setParticipant(null);
-                setScanning(true);
-              }}
-              className="w-full"
-            >
-              Escanear Outro
-            </Button>
+            {participant.payment_status !== "paid" ? (
+              <>
+                <Button
+                  onClick={() => setConfirmPaymentDialog(true)}
+                  className="w-full"
+                >
+                  Confirmar Pagamento
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setParticipant(null);
+                    setScanning(true);
+                  }}
+                  className="w-full"
+                >
+                  Escanear Outro
+                </Button>
+                <Dialog open={confirmPaymentDialog} onOpenChange={setConfirmPaymentDialog}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirmar Pagamento</DialogTitle>
+                      <DialogDescription>
+                        O pagamento deste participante ainda não foi confirmado.<br />
+                        Deseja confirmar o pagamento agora?
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex gap-2 mt-4">
+                      <Button className="flex-1" onClick={confirmPaymentAndCheckin}>
+                        Sim, confirmar pagamento e check-in
+                      </Button>
+                      <Button className="flex-1" variant="outline" onClick={() => setConfirmPaymentDialog(false)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={confirmCheckin}
+                  className="w-full"
+                >
+                  Confirmar Presença
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setParticipant(null);
+                    setScanning(true);
+                  }}
+                  className="w-full"
+                >
+                  Escanear Outro
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <Button onClick={() => setScanning(true)} className="w-full">

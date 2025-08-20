@@ -52,7 +52,6 @@ export function RegistrationManagement() {
   const [districtFilter, setDistrictFilter] = useState("");
   const [churchFilter, setChurchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [methodFilter, setMethodFilter] = useState(""); // Novo filtro de método
   const [passwordDialog, setPasswordDialog] = useState<{
     open: boolean;
     action: () => void;
@@ -98,47 +97,28 @@ export function RegistrationManagement() {
       !statusFilter ||
       statusFilter === "all" ||
       reg.payment_status === statusFilter;
-    const matchesMethod =
-      !methodFilter ||
-      methodFilter === "all" ||
-      reg.payment_method === methodFilter;
 
-    return matchesSearch && matchesDistrict && matchesChurch && matchesStatus && matchesMethod;
+    return matchesSearch && matchesDistrict && matchesChurch && matchesStatus;
   });
 
   // Atualizar pagamento
   const updatePaymentStatus = async (
     id: string,
     status: "pending" | "paid",
-    method?: "pix" | "dinheiro"
+    method?: "pix" | "cash"
   ) => {
     try {
-      // Se for desfazer/cancelar pagamento, volta para pendente e limpa método
-      const updateData =
-        status === "paid"
-          ? { payment_status: "paid", payment_method: method }
-          : { payment_status: "pending", payment_method: null };
-
       const { error } = await supabase
         .from("registrations")
-        .update(updateData)
+        .update({ payment_status: "paid", payment_method: method })
         .eq("id", id);
 
       if (error) throw error;
 
-      // Registrar histórico
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
-      await supabase.from("registration_history").insert({
-        registration_id: id,
-        action: status === "paid" ? "payment" : "cancel_payment",
-        details: { method },
-        performed_by: userId,
-      });
-
       toast({
         title: "Status atualizado",
-        description: `Pagamento ${status === "paid" ? "confirmado" : "cancelado, marcado como pendente"}.`,
+        description: `Pagamento ${status === "paid" ? "confirmado" : "marcado como pendente"
+          }.`,
       });
       mutate();
     } catch (error) {
@@ -154,15 +134,15 @@ export function RegistrationManagement() {
   const handlePaymentAction = (
     id: string,
     status: "pending" | "paid",
-    method?: "pix" | "dinheiro"
+    method?: "pix" | "cash"
   ) => {
     const action = () => updatePaymentStatus(id, status, method);
     const title =
-      status === "paid" ? "Confirmar Pagamento" : "Cancelar Pagamento";
+      status === "paid" ? "Confirmar Pagamento" : "Desfazer Pagamento";
     const description =
       status === "paid"
         ? `Tem certeza que deseja confirmar o pagamento via ${method?.toUpperCase()}?`
-        : "Tem certeza que deseja cancelar este pagamento?";
+        : "Tem certeza que deseja desfazer este pagamento?";
     setPasswordDialog({
       open: true,
       action,
@@ -196,10 +176,6 @@ export function RegistrationManagement() {
     const total = reportData.length;
     const paid = reportData.filter((r) => r.payment_status === "paid").length;
     const pending = total - paid;
-    const pix = reportData.filter((r) => r.payment_method === "pix").length;
-    const dinheiro = reportData.filter((r) => r.payment_method === "dinheiro").length;
-    const pixValue = reportData.filter((r) => r.payment_method === "pix" && r.payment_status === "paid" && r.age > 10).length * 10;
-    const dinheiroValue = reportData.filter((r) => r.payment_method === "dinheiro" && r.payment_status === "paid" && r.age > 10).length * 10;
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
@@ -231,9 +207,7 @@ export function RegistrationManagement() {
     doc.text(`Total de Inscrições: ${total}`, 20, 56);
     doc.text(`Pagamentos Confirmados: ${paid}`, 20, 63);
     doc.text(`Pagamentos Pendentes: ${pending}`, 20, 70);
-    doc.text(`Pagamentos via PIX: ${pix} (R$ ${pixValue},00)`, 20, 77);
-    doc.text(`Pagamentos em Dinheiro: ${dinheiro} (R$ ${dinheiroValue},00)`, 20, 84);
-    doc.text(`Data do Relatório: ${new Date().toLocaleDateString("pt-BR")}`, 20, 91);
+    doc.text(`Data do Relatório: ${new Date().toLocaleDateString("pt-BR")}`, 20, 77);
 
     // Tabela estilizada
     if (reportData.length > 0) {
@@ -501,10 +475,6 @@ export function RegistrationManagement() {
     pending: filteredRegistrations.filter((r) => r.payment_status === "pending").length,
     free: filteredRegistrations.filter((r) => r.age <= 10).length,
     payable: filteredRegistrations.filter((r) => r.age > 10).length,
-    pix: filteredRegistrations.filter((r) => r.payment_method === "pix").length,
-    dinheiro: filteredRegistrations.filter((r) => r.payment_method === "dinheiro").length,
-    pixValue: filteredRegistrations.filter((r) => r.payment_method === "pix" && r.payment_status === "paid" && r.age > 10).length * 10,
-    dinheiroValue: filteredRegistrations.filter((r) => r.payment_method === "dinheiro" && r.payment_status === "paid" && r.age > 10).length * 10,
   };
 
   // Excluir inscrição
@@ -535,7 +505,7 @@ export function RegistrationManagement() {
           registration_id: id,
           action: "cancelled", // ou "edited", "deleted", "checkin", "payment"
           details: { /* dados relevantes */ },
-          performed_by: userId,
+          performed_by: userId
         });
 
         toast({ title: "Inscrição cancelada", description: "Status alterado para cancelado." });
@@ -572,8 +542,8 @@ export function RegistrationManagement() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>Gerenciamento de Inscrições</span>
+          <CardTitle className="flex items-center justify-between">
+            Gerenciamento de Inscrições
             <ReportSelector
               onGenerateReport={generateReport}
               districts={districts}
@@ -617,24 +587,10 @@ export function RegistrationManagement() {
                 <p className="text-xs text-muted-foreground">Pagantes</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-6 text-center text-green-600">
-                <div className="text-xl font-bold">PIX</div>
-                <div className="text-lg">{stats.pix} pagantes</div>
-                <div className="text-xs text-muted-foreground">R$ {stats.pixValue},00</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6 text-center text-blue-600">
-                <div className="text-xl font-bold">Dinheiro</div>
-                <div className="text-lg">{stats.dinheiro} pagantes</div>
-                <div className="text-xs text-muted-foreground">R$ {stats.dinheiroValue},00</div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Filtros */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 mb-6">
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Search className="h-4 w-4" />
               <Input
@@ -683,31 +639,20 @@ export function RegistrationManagement() {
                 <SelectItem value="pending">Pendentes</SelectItem>
               </SelectContent>
             </Select>
-
-            <Select value={methodFilter} onValueChange={setMethodFilter}>
-              <SelectTrigger className="w-full sm:w-40 lg:w-48">
-                <SelectValue placeholder="Método de Pagamento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os métodos</SelectItem>
-                <SelectItem value="pix">PIX</SelectItem>
-                <SelectItem value="dinheiro">Dinheiro</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Tabela */}
           <div className="border rounded-lg overflow-x-auto scrollbar-thin scrollbar-thumb-event-primary">
-            <Table className="text-sm font-sans min-w-[700px]">
+            <Table className="text-sm font-sans">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Idade</TableHead>
                   <TableHead>Valor</TableHead>
-                  <TableHead className="hidden sm:table-cell">Distrito</TableHead>
-                  <TableHead className="hidden sm:table-cell">Igreja</TableHead>
+                  <TableHead>Distrito</TableHead>
+                  <TableHead>Igreja</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="hidden sm:table-cell">Data</TableHead>
+                  <TableHead>Data</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -721,8 +666,8 @@ export function RegistrationManagement() {
                         {registration.age <= 10 ? "Gratuito" : "R$ 10,00"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">{registration.district?.name}</TableCell>
-                    <TableCell className="hidden sm:table-cell">{registration.church?.name}</TableCell>
+                    <TableCell>{registration.district?.name}</TableCell>
+                    <TableCell>{registration.church?.name}</TableCell>
                     <TableCell>
                       <Badge
                         variant={registration.payment_status === "paid" ? "default" : "secondary"}
@@ -734,11 +679,12 @@ export function RegistrationManagement() {
                           : ""}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">
+                    <TableCell>
                       {new Date(registration.registration_date).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-2 flex-wrap justify-center">
+                      <div className="flex gap-2 flex-wrap">
+
                         {/* Confirmar pagamento PIX/Dinheiro */}
                         {registration.payment_status === "pending" ? (
                           <>
@@ -753,7 +699,7 @@ export function RegistrationManagement() {
                             <Button
                               size="icon"
                               variant="outline"
-                              onClick={() => handlePaymentAction(registration.id, "paid", "dinheiro")}
+                              onClick={() => handlePaymentAction(registration.id, "paid", "cash")}
                               title="Confirmar pagamento Dinheiro"
                             >
                               <CheckCircle className="h-4 w-4 text-blue-600" />
@@ -764,7 +710,7 @@ export function RegistrationManagement() {
                             size="icon"
                             variant="ghost"
                             onClick={() => handlePaymentAction(registration.id, "pending")}
-                            title="Cancelar Pagamento"
+                            title="Desfazer"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -852,15 +798,11 @@ export function RegistrationManagement() {
               e.preventDefault();
               const form = e.target as typeof e.target & {
                 nome: { value: string };
-                nascimento: { value: string };
-                distrito: { value: string };
-                igreja: { value: string };
+                // Adicione outros campos conforme necessário
               };
               const dados = {
                 full_name: form.nome.value,
-                birth_date: form.nascimento.value,
-                district_id: form.distrito.value,
-                church_id: form.igreja.value,
+                // Adicione outros campos aqui
               };
               const id = editDialog.registration?.id;
               const { data: { user } } = await supabase.auth.getUser();
@@ -878,56 +820,10 @@ export function RegistrationManagement() {
               mutate();
             }}
           >
-            <div className="space-y-3">
-              <Input
-                name="nome"
-                defaultValue={editDialog.registration?.full_name}
-                placeholder="Nome completo"
-                required
-              />
-              <Input
-                name="nascimento"
-                type="date"
-                defaultValue={editDialog.registration?.birth_date}
-                placeholder="Data de nascimento"
-                required
-              />
-              <Select
-                name="distrito"
-                defaultValue={editDialog.registration?.district_id}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Distrito" />
-                </SelectTrigger>
-                <SelectContent>
-                  {districts.map((district) => (
-                    <SelectItem key={district.id} value={district.id}>
-                      {district.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                name="igreja"
-                defaultValue={editDialog.registration?.church_id}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Igreja" />
-                </SelectTrigger>
-                <SelectContent>
-                  {churches
-                    .filter(c => c.district_id === (editDialog.registration?.district_id || districts[0]?.id))
-                    .map((church) => (
-                      <SelectItem key={church.id} value={church.id}>
-                        {church.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <Button type="submit">Salvar</Button>
-            </div>
+            {/* Campos do formulário */}
+            <Input name="nome" defaultValue={editDialog.registration?.full_name} />
+            {/* ...outros campos... */}
+            <Button type="submit">Salvar</Button>
           </form>
         </DialogContent>
       </Dialog>
