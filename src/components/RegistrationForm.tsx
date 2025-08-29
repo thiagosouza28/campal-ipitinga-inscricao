@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,17 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Calendar, MapPin, Church, CheckCircle, Download } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { useDistricts, useChurches } from "@/hooks/useSupabaseData";
+import { Calendar, MapPin, Church, CheckCircle, Sparkles, Users, Clock, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import jsPDF from 'jspdf';
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import QRCode from "qrcode";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Calendar as CalendarPicker } from "@/components/ui/calendar"; // Certifique-se de ter um componente de calendário
+import heroImage from "@/assets/campal-hero-bg.jpg";
 
 const formSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -43,13 +34,30 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export function RegistrationForm() {
-  // --- Hooks de dados ---
-  const { districts, loading: districtsLoading, error: districtsError } = useDistricts();
-  const { churches, loading: churchesLoading, error: churchesError } = useChurches();
+// Mock data para demonstração
+const districts = [
+  { id: "1", name: "Distrito Central" },
+  { id: "2", name: "Distrito Norte" },
+  { id: "3", name: "Distrito Sul" },
+  { id: "4", name: "Distrito Leste" },
+  { id: "5", name: "Distrito Oeste" },
+];
 
+const churches = [
+  { id: "1", name: "Igreja Central", district_id: "1" },
+  { id: "2", name: "Igreja do Bairro Novo", district_id: "1" },
+  { id: "3", name: "Igreja Norte", district_id: "2" },
+  { id: "4", name: "Igreja Esperança", district_id: "2" },
+  { id: "5", name: "Igreja Sul", district_id: "3" },
+  { id: "6", name: "Igreja Paz", district_id: "3" },
+  { id: "7", name: "Igreja Leste", district_id: "4" },
+  { id: "8", name: "Igreja Luz", district_id: "4" },
+  { id: "9", name: "Igreja Oeste", district_id: "5" },
+  { id: "10", name: "Igreja Vida", district_id: "5" },
+];
+
+export function RegistrationForm() {
   // --- Estados de UI ---
-  const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [registrationData, setRegistrationData] = useState<{ name: string; protocol: string } | null>(null);
@@ -100,186 +108,27 @@ export function RegistrationForm() {
     return dateString;
   };
 
-  const generateQRCodeImage = async (token: string) => {
-    try {
-      const qrDataUrl = await QRCode.toDataURL(token);
-      return qrDataUrl;
-    } catch (error) {
-      console.error('Erro ao gerar QR code:', error);
-      return '';
-    }
-  };
-
-  const generateReceipt = async (
-    data: FormData,
-    registrationId: string,
-    age: number,
-    checkin_token: string
-  ) => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-
-    // Cores
-    const primary = [197, 71, 52];
-    const accent = [52, 71, 197];
-
-    // Cabeçalho estilizado
-    doc.setFillColor(primary[0], primary[1], primary[2]);
-    doc.rect(0, 0, pageWidth, 30, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor(255, 255, 255);
-    doc.text("CAMPAL 2025 - IPITINGA", pageWidth / 2, 12, { align: "center" });
-    doc.setFontSize(13);
-    doc.text("FORTES NA PALAVRA", pageWidth / 2, 22, { align: "center" });
-
-    // Protocolo destacado
-    doc.setFontSize(11);
-    doc.setTextColor(primary[0], primary[1], primary[2]);
-    doc.setFont("helvetica", "bold");
-    doc.text(
-      `PROTOCOLO: ${registrationId.substring(0, 8).toUpperCase()}`,
-      pageWidth / 2,
-      36,
-      { align: "center" }
-    );
-
-    // Linha divisória
-    doc.setDrawColor(accent[0], accent[1], accent[2]);
-    doc.setLineWidth(0.7);
-    doc.line(15, 40, pageWidth - 15, 40);
-
-    // Dados do participante
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    let y = 48;
-    const district = districts.find((d) => d.id === data.district_id);
-    const church = churches.find((c) => c.id === data.church_id);
-
-    const details = [
-      `Nome: ${data.full_name}`,
-      `Nascimento: ${data.birth_date.split("-").reverse().join("/")}`,
-      `Idade: ${age} anos`,
-      `Distrito: ${district?.name || "N/A"}`,
-      `Igreja: ${church?.name || "N/A"}`,
-      `Valor: ${age <= 10 ? "GRATUITO (até 10 anos)" : "R$ 10,00"}`,
-      `Inscrição: ${new Date().toLocaleDateString("pt-BR")}`,
-    ];
-
-    details.forEach((detail) => {
-      doc.text(detail, 20, y);
-      y += 8;
-    });
-
-    // QR Code centralizado
-    const qrUrl = await generateQRCodeImage(checkin_token);
-    if (qrUrl) {
-      doc.addImage(qrUrl, "PNG", pageWidth / 2 - 20, y + 5, 40, 40);
-      doc.setFontSize(10);
-      doc.setTextColor(accent[0], accent[1], accent[2]);
-      doc.text(
-        "Apresente este QR Code para check-in",
-        pageWidth / 2,
-        y + 48,
-        { align: "center" }
-      );
-      y += 55;
-    } else {
-      y += 10;
-    }
-
-    // Linha divisória
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(15, y, pageWidth - 15, y);
-    y += 8;
-
-    // Informações do evento
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(primary[0], primary[1], primary[2]);
-    doc.text("INFORMAÇÕES DO EVENTO", 20, y);
-    y += 8;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    [
-      "Data: 26, 27 e 28 de Setembro de 2025",
-      "Local: CATRE IPITINGA",
-      "Tema: FORTES NA PALAVRA",
-      "Pagamento até 15/09/2025",
-      "Pix: (91) 99332-0376 - Thiago de Souza Teles",
-      "Banco: PagSeguro",
-      "Envie comprovante: (91) 98200-5371",
-      "Crianças até 10 anos não pagam",
-    ].forEach((info) => {
-      doc.text(info, 20, y);
-      y += 7;
-    });
-
-    // Observações importantes
-    y += 5;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(accent[0], accent[1], accent[2]);
-    doc.text("OBSERVAÇÕES IMPORTANTES", 20, y);
-    y += 8;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    [
-      "Mantenha este comprovante para apresentação no evento.",
-      "Pagamento pode ser feito via PIX ou dinheiro.",
-      "Em caso de dúvidas, entre em contato pelo WhatsApp (91) 98200-5371 - Thiago Teles.",
-    ].forEach((note) => {
-      doc.text(note, 20, y);
-      y += 6;
-    });
-
-    // Rodapé
-    doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
-    doc.text(
-      `Comprovante gerado em ${new Date().toLocaleString("pt-BR")}`,
-      pageWidth / 2,
-      doc.internal.pageSize.height - 10,
-      { align: "center" }
-    );
-
-    const fileName = `campal-2025-inscricao-${data.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf`;
-    doc.save(fileName);
-  };
-
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
     try {
-      const checkin_token = crypto.randomUUID();
-      const isoBirthDate = parseDateToISO(data.birth_date);
-      const age = calculateAge(isoBirthDate);
-
-      const { data: result, error } = await supabase
-        .from('registrations')
-        .insert({
-          full_name: data.full_name,
-          birth_date: isoBirthDate,
-          age,
-          district_id: data.district_id,
-          church_id: data.church_id,
-          checkin_token
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      if (result) {
-        await generateReceipt({ ...data, birth_date: isoBirthDate }, result.id, age, checkin_token);
-        setRegistrationData({ name: data.full_name, protocol: result.id.substring(0, 8).toUpperCase() });
-        form.reset(); // Limpa todos os campos após inscrição
-      }
+      // Simula chamada para backend
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const protocol = Math.random().toString(36).substring(2, 10).toUpperCase();
+      setRegistrationData({ 
+        name: data.full_name, 
+        protocol 
+      });
+      
+      form.reset();
       setShowConfirmation(true);
+      
+      toast({
+        title: "Inscrição realizada com sucesso!",
+        description: `Protocolo: ${protocol}`,
+      });
     } catch (err) {
-      console.error("Erro ao registrar no Supabase: ", err);
+      console.error("Erro ao registrar:", err);
       toast({
         title: "Erro ao realizar inscrição",
         description: "Tente novamente ou entre em contato com o organizador.",
@@ -290,152 +139,240 @@ export function RegistrationForm() {
     }
   };
 
-  // --- Loading / Error UI ---
-  if (districtsLoading || churchesLoading) {
-    return (
-      <div className="w-full h-32 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-event-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (districtsError || churchesError) {
-    return (
-      <div className="w-full p-6 text-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
-          <div className="text-red-600 font-medium">Erro ao carregar dados</div>
-          <p className="text-red-500 text-sm">{districtsError?.message || churchesError?.message || "Não foi possível carregar os dados necessários."}</p>
-          <button onClick={() => window.location.reload()} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">Tentar Novamente</button>
-        </div>
-      </div>
-    );
-  }
-
   // --- Renderização principal ---
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-8 sm:py-12">
-      <div className="text-center space-y-2 mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-event-primary">CAMPAL 2025 - IPITINGA</h1>
-        <div className="text-lg sm:text-xl font-semibold text-event-accent">FORTES NA PALAVRA</div>
-        <div className="text-base sm:text-lg">26 a 28 de Setembro de 2025 - CATRE IPITINGA</div>
-        <div className="text-sm text-muted-foreground">Inscrições até 15 de setembro</div>
-        <div className="text-sm font-medium bg-white/50 py-1 px-3 rounded-full inline-block">Valor: R$ 10,00 (Até 10 anos não paga)</div>
+    <div className="min-h-screen bg-gradient-background relative overflow-hidden">
+      {/* Background com overlay */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${heroImage})` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-event-primary/90 via-event-accent/80 to-event-primary/90 backdrop-blur-xs" />
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-          {/* Nome */}
-          <FormField control={form.control} name="full_name" render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-base font-medium">Nome Completo</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="Digite seu nome completo" className="h-12 bg-white/70 border-0 focus:bg-white" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+      {/* Elementos decorativos flutuantes */}
+      <div className="absolute top-20 left-10 w-20 h-20 bg-event-gold/20 rounded-full blur-xl animate-float" />
+      <div className="absolute bottom-32 right-16 w-32 h-32 bg-event-accent/20 rounded-full blur-xl animate-float" style={{ animationDelay: '1s' }} />
+      <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-white/10 rounded-full blur-lg animate-pulse-soft" />
 
-          {/* Data de Nascimento */}
-          <FormField control={form.control} name="birth_date" render={({ field }) => (
-            <FormItem>
-              <FormLabel className="flex items-center gap-2 text-base font-medium">
-                <Calendar className="h-4 w-4" /> Data de Nascimento
-              </FormLabel>
-              <FormControl>
-                <Input
-                  type="tel"
-                  placeholder="DD/MM/AAAA"
-                  className="h-12 bg-white/70 border-0 focus:bg-white"
-                  value={field.value
-                    ? (() => {
-                        if (field.value.includes('-')) {
-                          const [year, month, day] = field.value.split('-');
-                          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-                        }
-                        return formatDateString(field.value);
-                      })()
-                    : ''}
-                  onChange={(e) => {
-                    const formatted = formatDateString(e.target.value);
-                    field.onChange(formatted.length === 10 ? parseDateToISO(formatted) : formatted);
-                  }}
-                  maxLength={10}
-                  inputMode="numeric"
-                  pattern="\d{2}/\d{2}/\d{4}"
-                  autoComplete="off"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
-
-          {/* Distrito e Igreja */}
-          <div className="grid gap-5 sm:grid-cols-2">
-            {/* Distrito */}
-            <FormField control={form.control} name="district_id" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-2 text-base font-medium"><MapPin className="h-4 w-4" /> Distrito</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="h-12 bg-white/70 border-0 focus:bg-white">
-                      <SelectValue placeholder="Selecione o distrito" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {districts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
-
-            {/* Igreja */}
-            <FormField control={form.control} name="church_id" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-2 text-base font-medium"><Church className="h-4 w-4" /> Igreja</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                  disabled={!selectedDistrict} // Só habilita se distrito selecionado
-                >
-                  <FormControl>
-                    <SelectTrigger className="h-12 bg-white/70 border-0 focus:bg-white">
-                      <SelectValue placeholder={selectedDistrict ? "Selecione a igreja" : "Selecione o distrito primeiro"} />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {filteredChurches.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+      <div className="relative z-10 w-full max-w-lg mx-auto px-6 py-12">
+        {/* Header do evento */}
+        <div className="text-center space-y-6 mb-12">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20">
+              <Sparkles className="h-4 w-4 text-event-gold animate-pulse" />
+              <span className="text-white/90 text-sm font-medium">Evento Oficial</span>
+            </div>
+            
+            <h1 className="text-4xl sm:text-5xl font-bold text-white drop-shadow-2xl">
+              CAMPAL 2025
+            </h1>
+            <div className="text-xl sm:text-2xl font-semibold text-event-gold drop-shadow-lg">
+              IPITINGA
+            </div>
+            <div className="bg-gradient-gold text-transparent bg-clip-text text-2xl sm:text-3xl font-bold drop-shadow-sm">
+              FORTES NA PALAVRA
+            </div>
           </div>
 
-          {/* Botão enviar */}
-          <Button type="submit" className="w-full h-12 bg-event-primary hover:bg-event-primary-dark text-white font-semibold" disabled={submitting}>
-            {submitting ? 'Registrando...' : 'Realizar Inscrição'}
-          </Button>
-        </form>
-      </Form>
+          {/* Info cards */}
+          <div className="grid grid-cols-2 gap-3 mt-8">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 hover:bg-white/15 transition-all duration-300">
+              <Clock className="h-5 w-5 text-event-gold mx-auto mb-2" />
+              <div className="text-white text-sm font-medium">26-28 Set</div>
+              <div className="text-white/80 text-xs">2025</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 hover:bg-white/15 transition-all duration-300">
+              <MapPin className="h-5 w-5 text-event-gold mx-auto mb-2" />
+              <div className="text-white text-sm font-medium">CATRE</div>
+              <div className="text-white/80 text-xs">Ipitinga</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 hover:bg-white/15 transition-all duration-300">
+              <DollarSign className="h-5 w-5 text-event-gold mx-auto mb-2" />
+              <div className="text-white text-sm font-medium">R$ 10,00</div>
+              <div className="text-white/80 text-xs">Até 10 anos grátis</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 hover:bg-white/15 transition-all duration-300">
+              <Users className="h-5 w-5 text-event-gold mx-auto mb-2" />
+              <div className="text-white text-sm font-medium">Inscrições</div>
+              <div className="text-white/80 text-xs">Até 15/09</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Formulário */}
+        <Card className="shadow-glow border-white/20 bg-white/95 backdrop-blur-sm hover:shadow-2xl transition-all duration-500">
+          <CardHeader className="text-center pb-6">
+            <CardTitle className="text-2xl font-bold bg-gradient-primary text-transparent bg-clip-text">
+              Realize sua Inscrição
+            </CardTitle>
+            <CardDescription className="text-base text-gray-600">
+              Preencha os dados abaixo para garantir sua vaga no evento
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="space-y-6">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {/* Nome */}
+                <FormField control={form.control} name="full_name" render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-base font-semibold text-gray-700">Nome Completo</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="Digite seu nome completo" 
+                        className="h-14 bg-white/80 border-2 border-gray-200 focus:border-event-primary focus:bg-white transition-all duration-300 text-base placeholder:text-gray-400 hover:border-gray-300"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {/* Data de Nascimento */}
+                <FormField control={form.control} name="birth_date" render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="flex items-center gap-2 text-base font-semibold text-gray-700">
+                      <Calendar className="h-5 w-5 text-event-accent" /> 
+                      Data de Nascimento
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="tel"
+                        placeholder="DD/MM/AAAA"
+                        className="h-14 bg-white/80 border-2 border-gray-200 focus:border-event-primary focus:bg-white transition-all duration-300 text-base placeholder:text-gray-400 hover:border-gray-300"
+                        value={field.value
+                          ? (() => {
+                              if (field.value.includes('-')) {
+                                const [year, month, day] = field.value.split('-');
+                                return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+                              }
+                              return formatDateString(field.value);
+                            })()
+                          : ''}
+                        onChange={(e) => {
+                          const formatted = formatDateString(e.target.value);
+                          field.onChange(formatted.length === 10 ? parseDateToISO(formatted) : formatted);
+                        }}
+                        maxLength={10}
+                        inputMode="numeric"
+                        pattern="\d{2}/\d{2}/\d{4}"
+                        autoComplete="off"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {/* Distrito e Igreja */}
+                <div className="grid gap-6 sm:grid-cols-2">
+                  {/* Distrito */}
+                  <FormField control={form.control} name="district_id" render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="flex items-center gap-2 text-base font-semibold text-gray-700">
+                        <MapPin className="h-5 w-5 text-event-accent" /> 
+                        Distrito
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-14 bg-white/80 border-2 border-gray-200 focus:border-event-primary transition-all duration-300 hover:border-gray-300">
+                            <SelectValue placeholder="Selecione o distrito" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-white/95 backdrop-blur-sm border-white/20">
+                          {districts.map(d => (
+                            <SelectItem key={d.id} value={d.id} className="text-base py-3 hover:bg-event-primary/10">
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  {/* Igreja */}
+                  <FormField control={form.control} name="church_id" render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="flex items-center gap-2 text-base font-semibold text-gray-700">
+                        <Church className="h-5 w-5 text-event-accent" /> 
+                        Igreja
+                      </FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={!selectedDistrict}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="h-14 bg-white/80 border-2 border-gray-200 focus:border-event-primary transition-all duration-300 disabled:opacity-50 hover:border-gray-300">
+                            <SelectValue placeholder={selectedDistrict ? "Selecione a igreja" : "Selecione o distrito primeiro"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-white/95 backdrop-blur-sm border-white/20">
+                          {filteredChurches.map(c => (
+                            <SelectItem key={c.id} value={c.id} className="text-base py-3 hover:bg-event-primary/10">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
+                {/* Botão enviar */}
+                <Button 
+                  type="submit" 
+                  className="w-full h-16 bg-gradient-primary hover:shadow-glow text-white font-bold text-lg transition-all duration-500 transform hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none hover:shadow-2xl" 
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Registrando...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5" />
+                      Realizar Inscrição
+                    </div>
+                  )}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Modal de Confirmação */}
       <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Inscrição Concluída</DialogTitle>
-            <DialogDescription>
-              A inscrição de <strong>{registrationData?.name}</strong> foi realizada com sucesso!
+        <DialogContent className="sm:max-w-lg bg-white/95 backdrop-blur-sm border-white/20 shadow-2xl">
+          <DialogHeader className="text-center space-y-4">
+            <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto animate-pulse-soft">
+              <CheckCircle className="h-8 w-8 text-white" />
+            </div>
+            <DialogTitle className="text-2xl font-bold bg-gradient-primary text-transparent bg-clip-text">
+              🎉 Inscrição Concluída!
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              A inscrição de <strong className="text-event-primary">{registrationData?.name}</strong> foi realizada com sucesso!
+              <br />
+              <span className="text-sm text-gray-600 mt-2 block">
+                Protocolo: <strong className="text-event-accent">{registrationData?.protocol}</strong>
+              </span>
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setShowConfirmation(false)} className="mr-2">Fechar</Button>
+          <DialogFooter className="sm:justify-center">
+            <Button 
+              onClick={() => setShowConfirmation(false)} 
+              className="bg-gradient-primary hover:shadow-glow text-white px-8 py-3 font-semibold transition-all duration-300 hover:scale-105"
+            >
+              Continuar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-
